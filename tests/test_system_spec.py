@@ -27,6 +27,6 @@ class TestSystemSpec(unittest.TestCase):
         # dissolution
         ss = system_spec.supersaturation(solubility, 0.009638)
         gd = form.dissolution_rate(40, ss)
-        self.assertAlmostEqual(float(gd), 1.1e-6, 9)
+        self.assertAlmostEqual(float(gd), -1.1e-6, 9)
 if __name__ == '__main__':
     unittest.main()

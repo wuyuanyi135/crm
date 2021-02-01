@@ -38,7 +38,7 @@ class FormSpec:
 
     def dissolution_rate(self, t: float, ss: float, n: np.ndarray = None) -> np.ndarray:
         """
-        see @growth_rate. This should return a positive value.
+        see @growth_rate. This should return a negative value.
         :param n:
         :param t:
         :param ss:
@@ -66,7 +66,9 @@ class FormSpec:
             # when there is no rows
             return 0
 
-        return (np.prod(n[:, :-1] ** self.volume_fraction_powers, axis=1) * self.shape_factor * n[:, -1]).sum(axis=0)
+        ret = (np.prod(n[:, :-1] ** self.volume_fraction_powers, axis=1) * self.shape_factor * n[:, -1]).sum(axis=0)
+
+        return ret
 
 
 class ParametricFormSpec(FormSpec):
@@ -138,7 +140,6 @@ class ParametricFormSpec(FormSpec):
 
     def dissolution_rate(self, t: float, ss: float, n: np.ndarray = None) -> np.ndarray:
         R = 8.3145
-        ss = -ss
         if self.d_betas == 0:
             return self.d_coefs * ss ** self.d_powers * np.exp(-self.d_eas / R / (t + 273.15))
         else:
@@ -172,4 +173,8 @@ class SystemSpec:
         state = state_type(**kwargs)
         if not "n" in kwargs:
             state.n = [np.array([]).reshape((0, f.dimensionality + 1)) for f in self.forms]  # dim + 1 for count column
+        state.system_spec = self
         return state
+
+    def get_form_names(self):
+        return [f.name for f in self.forms]

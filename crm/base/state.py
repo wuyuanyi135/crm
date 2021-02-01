@@ -7,6 +7,7 @@ import numpy as np
 
 @dataclass
 class State:
+    time: float = 0
 
     # solute concentration in kg solute / kg solvent
     concentration: float = 0
@@ -19,13 +20,10 @@ class State:
 
     # Extra information attached by the solver.
     extra: Union[None, Dict] = None
-    time: float = 0
 
-    def get_count_density(self):
-        """
-        :return: see the definition of n
-        """
-        return self.n
+    system_spec = None
 
     def copy(self):
-        return copy.deepcopy(self)
+        copied = copy.copy(self)
+        copied.n = self.n.copy()
+        return copied

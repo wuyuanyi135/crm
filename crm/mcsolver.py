@@ -3,9 +3,15 @@ from typing import Type, Literal
 
 import numpy as np
 
-from crm.base.solver import Solver, SolverOptions
+from crm.base.solver import Solver, SolverOptions, SolverMeta
 from crm.base.state import State
 from crm.base.system_spec import SystemSpec
+
+
+@dataclass
+class MCSolverMeta(SolverMeta):
+    name: str = "MCSolver"
+    version: str = "0.0.1"
 
 
 @dataclass
@@ -25,6 +31,10 @@ class MCSolverOptions(SolverOptions):
 
 class MCSolver(Solver):
     options: MCSolverOptions
+
+    @staticmethod
+    def get_meta() -> SolverMeta:
+        return MCSolverMeta()
 
     def __init__(self, system_spec: SystemSpec, options: MCSolverOptions = None):
         super().__init__(system_spec, options)
@@ -47,9 +57,9 @@ class MCSolver(Solver):
         return n
 
     def update_dissolution(self, n: np.ndarray, dissolution_rate: np.ndarray, time_step: float) -> np.ndarray:
-        n[:, :-1] -= dissolution_rate.reshape((1, -1)) * time_step
+        n[:, :-1] += dissolution_rate.reshape((1, -1)) * time_step
         positive = np.all(n[:, :-1] >= 0, axis=1)
-        n = n[positive]
+        n = n[positive, :]
         return n
 
     def get_time_step(self, state: State, growth_or_dissolution: np.ndarray, nucleation_rates: np.ndarray,

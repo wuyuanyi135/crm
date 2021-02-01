@@ -1,5 +1,6 @@
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Type, List, Dict
 
 import numpy as np
@@ -8,11 +9,18 @@ from crm.base.input import Input
 from crm.base.output_spec import OutputSpec, OutputAllSpec
 from crm.base.state import State
 from crm.base.system_spec import SystemSpec
+from crm.utils.git import get_commit_hash
+import os, psutil
+
+process = psutil.Process(os.getpid())
+
 
 @dataclass
 class SolverMeta:
     name: str = "solver"
-    version: str = "0.0"
+    version: str = "0.0.1"
+    commit: str = get_commit_hash()
+
 
 @dataclass
 class SolverOptions:
@@ -25,8 +33,6 @@ class SolverOptions:
 
     time_step_scale: float = 1.
 
-    include_initial_condition: bool = True
-
     max_time_step: float = 10.0
 
 
@@ -34,6 +40,10 @@ class Solver:
     def __init__(self, system_spec: SystemSpec, options: SolverOptions = None):
         self.options = options
         self.system_spec = system_spec
+
+    @staticmethod
+    def get_meta() -> SolverMeta:
+        raise NotImplementedError()
 
     def get_option_type(self) -> Type[SolverOptions]:
         return SolverOptions
@@ -102,6 +112,10 @@ class Solver:
         if profiling is None:
             return
 
+        if name == "ram":
+            profiling["ram"] = process.memory_info().rss
+            return
+
         if name in profiling:
             # second entrace
             profiling[name] = time.time() - profiling[name]
@@ -134,12 +148,10 @@ class Solver:
         end_time = state.time + solve_time
 
         output_spec = options.output_spec
-        if options.include_initial_condition:
-            self.process_output(state, output_spec, end_time)
-
-        profiling = {} if options.attach_extra_profiling else None
 
         while state.time < end_time:
+            profiling = {} if options.attach_extra_profiling else None
+
             # apply input
             state = input_.transform(state)
 
@@ -174,7 +186,6 @@ class Solver:
             sols = np.array(sols)
             sses = np.array(sses)
             time_steps = np.array(time_steps)
-            gds = np.array(gds)
 
             # use the smaller step size
             time_step = self.post_time_step(time_steps)
@@ -193,14 +204,15 @@ class Solver:
                 self.profiling(profiling, f"update_n_{f.name}")
             vfs_new = np.array([f.volume_fraction(n) for f, n in zip(forms, state.n)])
 
-            self.profiling(profiling, f"update_concentration")
+            self.profiling(profiling, "update_concentration")
             mass_diffs = (vfs_new - vfs) * densities
             state.concentration = self.update_concentration(state.concentration, mass_diffs, time_step)
             vfs = vfs_new
-            self.profiling(profiling, f"update_concentration")
+            self.profiling(profiling, "update_concentration")
 
             state.time += time_step
             self.process_output(state, output_spec, end_time, time_step=time_step, gds=gds,
                                 nucleation_rates=nucleation_rate_list, sses=sses, vfs=vfs, sols=sols,
                                 profiling=profiling)
+            self.profiling(profiling, "ram")
         return output_spec.get_outputs()
