@@ -4,7 +4,7 @@ from crm.presets.hypothetical import Hypothetical1D, HypotheticalPolymorphic1D
 
 
 def get_sample_data(options: MCSolverOptions = None, system_spec=None):
-    options = options or MCSolverOptions(attach_extra=True, attach_extra_profiling=True, time_step=10)
+    options = options or MCSolverOptions(attach_extra=True, profiling=True, time_step=10)
 
     system_spec = system_spec or Hypothetical1D()
     concentration = system_spec.forms[0].solubility(60)

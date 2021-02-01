@@ -1,9 +1,6 @@
-import unittest
+import pytest
 from crm.utils.git import get_commit_hash
 
-class TestGit(unittest.TestCase):
-    def test_get_commit_hash(self):
-        print(get_commit_hash())
 
-if __name__ == '__main__':
-    unittest.main()
+def test_get_commit_hash():
+    print(get_commit_hash())

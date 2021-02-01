@@ -19,13 +19,10 @@ def assert_column_names_match_spec(df, spec):
 @pytest.mark.parametrize("sample_data", sample_data.values(), ids=sample_data.keys())
 class TestStateDataFrame:
     def test_solubility(self, sample_data):
-        sdf = StateDataFrame(sample_data, False)
-        solubility = sdf.solubility
-
-        sdf_computed = StateDataFrame(sample_data, True)
+        sdf_computed = StateDataFrame(sample_data)
         computed_solubility = sdf_computed.solubility
 
-        assert solubility.equals(computed_solubility)
+        assert_column_names_match_spec(computed_solubility, sample_data[0].system_spec)
 
     def test_concentration(self, sample_data):
         sdf = StateDataFrame(sample_data)
@@ -51,15 +48,9 @@ class TestStateDataFrame:
         #  In conclusion, we will remove the redundant extra information attached to the state because either way there will
         #  be some state without correct computed properties assigned.
 
-        sdf = StateDataFrame(sample_data, use_computed_properties=False)
-        supersaturation = sdf.supersaturation
-        assert_column_names_match_spec(supersaturation, sample_data[0].system_spec)
-
-        sdf = StateDataFrame(sample_data, use_computed_properties=True)
+        sdf = StateDataFrame(sample_data)
         supersaturation_computed = sdf.supersaturation
         assert_column_names_match_spec(supersaturation_computed, sample_data[0].system_spec)
-
-        assert supersaturation_computed.equals(supersaturation)
 
     def test_n(self, sample_data):
         sdf = StateDataFrame(sample_data)
@@ -67,22 +58,11 @@ class TestStateDataFrame:
         assert_column_names_match_spec(n, sample_data[0].system_spec)
 
     def test_counts(self, sample_data):
-        sdf = StateDataFrame(sample_data, use_computed_properties=False)
-        counts = sdf.counts
-        assert_column_names_match_spec(counts, sample_data[0].system_spec)
-
-        sdf = StateDataFrame(sample_data, use_computed_properties=True)
+        sdf = StateDataFrame(sample_data)
         counts_computed = sdf.counts
         assert_column_names_match_spec(counts_computed, sample_data[0].system_spec)
-        assert counts_computed.equals(counts)
 
     def test_solid_volume_fraction(self, sample_data):
-        sdf = StateDataFrame(sample_data, use_computed_properties=False)
-        solid_volume_fraction = sdf.solid_volume_fraction
-        assert_column_names_match_spec(solid_volume_fraction, sample_data[0].system_spec)
-
-        sdf = StateDataFrame(sample_data, use_computed_properties=True)
+        sdf = StateDataFrame(sample_data)
         solid_volume_fraction_computed = sdf.solid_volume_fraction
         assert_column_names_match_spec(solid_volume_fraction_computed, sample_data[0].system_spec)
-
-        assert solid_volume_fraction.equals(solid_volume_fraction_computed)

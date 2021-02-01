@@ -137,7 +137,8 @@ class StateDataFrame:
     # Unprocessed extra fields. The processed fields will be popped from it.
     extra: pd.DataFrame
 
-    def __init__(self, states: List[State], use_computed_properties: bool = False):
+    def __init__(self, states: List[State], use_computed_properties: bool = True):
+        assert use_computed_properties, "The computed properties are no longer attached to the states."
         self.use_computed_properties = use_computed_properties
         self._states = states
 

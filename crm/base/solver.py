@@ -28,12 +28,12 @@ class SolverOptions:
 
     # master switch for extra information
     attach_extra: bool = False
-    attach_extra_kinetics: bool = True
-    attach_extra_profiling: bool = True
 
     time_step_scale: float = 1.
 
     max_time_step: float = 10.0
+
+    profiling: bool = False
 
 
 class Solver:
@@ -80,32 +80,20 @@ class Solver:
     def attach_extra(
             self,
             state: State,
-            time_step: float = None,
-            gds: np.ndarray = None,
-            nucleation_rates: np.ndarray = None,
-            sses: np.ndarray = None,
-            sols: np.ndarray = None,
-            vfs: np.ndarray = None,
+            is_initial: bool = False,
             profiling: dict = None,
     ) -> State:
         options = self.options
         if options.attach_extra:
-            extra = {"time_step": time_step, "sses": sses, "vfs": vfs, "sols": sols}
-
-            if options.attach_extra_kinetics:
-                extra["gds"] = gds
-                if nucleation_rates is not None:
-                    extra["nucleation"] = nucleation_rates
-
-            if options.attach_extra_profiling:
-                extra["profiling"] = profiling
+            extra = {"profiling": profiling, "is_initial": is_initial}
             state.extra = extra
         return state
 
-    def process_output(self, state: State, output_spec: OutputSpec, end_time: float, **kwargs):
+    def process_output(self, state: State, output_spec: OutputSpec, end_time: float,
+                       is_initial: bool = False, **kwargs):
         if output_spec.should_update_output(state, end_time):
             state = state.copy()  # do not update the internal state.
-            state = self.attach_extra(state, **kwargs)
+            state = self.attach_extra(state, is_initial, **kwargs)
             output_spec.update_output(state)
 
     def profiling(self, profiling: dict, name: str):
@@ -149,8 +137,11 @@ class Solver:
 
         output_spec = options.output_spec
 
+        # initial condition
+        self.process_output(state, output_spec, end_time, is_initial=True)
+
         while state.time < end_time:
-            profiling = {} if options.attach_extra_profiling else None
+            profiling = {} if options.profiling else None
 
             # apply input
             state = input_.transform(state)
@@ -211,8 +202,6 @@ class Solver:
             self.profiling(profiling, "update_concentration")
 
             state.time += time_step
-            self.process_output(state, output_spec, end_time, time_step=time_step, gds=gds,
-                                nucleation_rates=nucleation_rate_list, sses=sses, vfs=vfs, sols=sols,
-                                profiling=profiling)
+            self.process_output(state, output_spec, end_time, profiling=profiling)
             self.profiling(profiling, "ram")
         return output_spec.get_outputs()
