@@ -1,12 +1,13 @@
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Dict, Callable
 import numpy as np
 from crm.base.solver import SolverMeta
 from crm.base.state import State
 from crm.base.system_spec import SystemSpec
 from crm.utils.pandas import StateDataFrame
+from crm.utils.csd_grid import edges_to_center_grid
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
@@ -37,6 +38,10 @@ class ReportOptions:
     particle_count_profile: bool = True
 
     particle_size_profile: bool = True
+
+    csd_edges: np.ndarray = np.linspace(0, 300e-6, 100)
+    csd_logx: bool = True
+    csd_logy: bool = True
 
     debug: bool = False
 
@@ -168,7 +173,39 @@ class ReportGenerator:
             dcc.Graph(figure=fig_gds),
         ])
 
-    def create_result(self, sdf: StateDataFrame):
+    def create_csd(self, sdf: StateDataFrame, app):
+        time = sdf.time
+        edges = self.options.csd_edges
+        logx = self.options.csd_logx
+        logy = self.options.csd_logy
+        csds = sdf.get_csd(edges)
+        grids = edges_to_center_grid(edges)
+        children = html.Div(children=[
+            dcc.Slider(id="csd-slider", min=time.min(), max=time.max(), value=time.min(), step=1, tooltip=dict(always_visible=True)),
+            dcc.Graph(id="csd"),
+        ])
+
+        @app.callback(
+            dash.dependencies.Output("csd", "figure"),
+            [dash.dependencies.Input("csd-slider", "value")]
+        )
+        def func(slider_value):
+            idx = time.get_loc(slider_value, method="nearest")
+            t = time[idx]
+            csd = csds.loc[t]
+            df = pd.DataFrame(data=csd.tolist(), columns=grids, index=csds.columns).T
+            fig = px.line(df)
+            fig.update_layout(xaxis_title="Size (m)", yaxis_title="Count (#/m^3)", )
+
+            if logx:
+                fig.update_xaxes(type="log")
+            if logy:
+                fig.update_yaxes(type="log")
+            return fig
+
+        return children
+
+    def create_result(self, sdf: StateDataFrame, app):
         return html.Div(id="result-container", children=[
             html.H2("Bulk Properties"),
             self.create_temperature_profile(sdf),
@@ -181,6 +218,9 @@ class ReportGenerator:
 
             html.H2("Kinetics"),
             self.create_kinetics_profile(sdf),
+
+            html.H2("CSD"),
+            self.create_csd(sdf, app),
         ])
 
     def create_dash_layout(self, states: List[State]):
@@ -191,7 +231,7 @@ class ReportGenerator:
             html.H1(children=self.options.title),
             self.create_meta(),
 
-            self.create_result(sdf),
+            self.create_result(sdf, app),
 
             html.Button("Shutdown", id="shutdown-button", n_clicks=0) if self.options.shutdown_button else None,
             html.Div(id="status"),
