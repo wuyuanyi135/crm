@@ -52,32 +52,22 @@ class StateDataFrame:
 
     @functools.cached_property
     def solubility(self) -> PolymorphicTSProperty:
-        if self.use_computed_properties:
-            temperature = self.temperature.iloc[:, 0]  # to series
-            solubility_per_form = [temperature.apply(f.solubility).rename(f.name) for f in self.system_spec.forms]
-            solubility = pd.concat(solubility_per_form, axis=1)
-            return solubility
-        else:
-            solubility = series_polymorphic_list_to_dataframe(self.df_extra["sols"]).set_axis(self.form_names, axis=1)
-            solubility.index = self.time
-            return solubility
+        temperature = self.temperature.iloc[:, 0]  # to series
+        solubility_per_form = [temperature.apply(f.solubility).rename(f.name) for f in self.system_spec.forms]
+        solubility = pd.concat(solubility_per_form, axis=1)
+        return solubility
 
     @functools.cached_property
     def supersaturation(self) -> PolymorphicTSProperty:
-        if self.use_computed_properties:
-            solubility = self.solubility
-            concentration = self.concentration["concentration"]  # to series
+        solubility = self.solubility
+        concentration = self.concentration["concentration"]  # to series
 
-            ss = []
-            for s, c in zip(solubility.itertuples(index=False), concentration):
-                ss.append([self.system_spec.supersaturation(sol, c) for sol in s])
-            supersaturation = pd.DataFrame(ss, columns=self.form_names, index=self.time)
-            return supersaturation
-        else:
-            supersaturation = series_polymorphic_list_to_dataframe(self.df_extra["sses"]).set_axis(self.form_names,
-                                                                                                   axis=1)
-            supersaturation.index = self.time
-            return supersaturation
+        ss = []
+        for s, c in zip(solubility.itertuples(index=False), concentration):
+            ss.append([self.system_spec.supersaturation(sol, c) for sol in s])
+        supersaturation = pd.DataFrame(ss, columns=self.form_names, index=self.time)
+        return supersaturation
+
 
     # particle scalar properties
     @functools.cached_property
@@ -88,19 +78,14 @@ class StateDataFrame:
 
     @functools.cached_property
     def solid_volume_fraction(self) -> PolymorphicTSProperty:
-        if self.use_computed_properties:
-            n_df = self.n
-            vf_funcs = [f.volume_fraction for f in self.system_spec.forms]
-            vfs = []
-            for r in n_df.itertuples(index=False):
-                vf = (f(n) for f, n in zip(vf_funcs, r))
-                vfs.append(vf)
-            vfs_df = pd.DataFrame(vfs, columns=self.form_names, index=self.time)
-            return vfs_df
-        else:
-            vfs = series_polymorphic_list_to_dataframe(self.df_extra["vfs"]).set_axis(self.form_names, axis=1)
-            vfs.index = self.time
-            return vfs
+        n_df = self.n
+        vf_funcs = [f.volume_fraction for f in self.system_spec.forms]
+        vfs = []
+        for r in n_df.itertuples(index=False):
+            vf = (f(n) for f, n in zip(vf_funcs, r))
+            vfs.append(vf)
+        vfs_df = pd.DataFrame(vfs, columns=self.form_names, index=self.time)
+        return vfs_df
 
     # Multi-index column with polymorph name as the first level and the quantile q value
     # as the second value.
@@ -137,9 +122,7 @@ class StateDataFrame:
     # Unprocessed extra fields. The processed fields will be popped from it.
     extra: pd.DataFrame
 
-    def __init__(self, states: List[State], use_computed_properties: bool = True):
-        assert use_computed_properties, "The computed properties are no longer attached to the states."
-        self.use_computed_properties = use_computed_properties
+    def __init__(self, states: List[State]):
         self._states = states
 
         self._system_spec = states[0].system_spec
