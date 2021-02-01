@@ -25,5 +25,5 @@ class State:
 
     def copy(self):
         copied = copy.copy(self)
-        copied.n = self.n.copy()
+        copied.n = copy.deepcopy(self.n)
         return copied
