@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 
 from crm.base.input import ConstTemperatureInput
 from crm.mcsolver import MCSolver, MCState, MCSolverOptions
@@ -14,7 +15,7 @@ def test_simple():
 
     solver = MCSolver(system_spec, options)
     input_ = ConstTemperatureInput(25.)
-    state_output = solver.compute(state, 300, input_)
+    state_output = solver.compute(state, 3600, input_)
 
 def test_polymorphic():
     options = MCSolverOptions(attach_extra=True)
@@ -25,4 +26,9 @@ def test_polymorphic():
 
     solver = MCSolver(system_spec, options)
     input_ = ConstTemperatureInput(25.)
-    state_output = solver.compute(state, 300, input_)
+    state_output = solver.compute(state, 3600, input_)
+
+    for state in state_output:
+        for i, n in enumerate(state.n):
+            if n.shape[0] > 0:
+                assert np.all(n[:, 0] >= 0), f"form {i} contains negative dimension"

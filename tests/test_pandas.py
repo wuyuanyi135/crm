@@ -3,6 +3,7 @@ import pytest
 from crm.mcsolver import MCSolverOptions
 from tests.get_data import get_sample_data, get_sample_data_polymorphic
 from crm.utils.pandas import StateDataFrame
+from crm.utils.csd_grid import edges_to_center_grid
 import pandas as pd
 import numpy as np
 
@@ -64,5 +65,39 @@ class TestStateDataFrame:
 
     def test_solid_volume_fraction(self, sample_data):
         sdf = StateDataFrame(sample_data)
-        solid_volume_fraction_computed = sdf.solid_volume_fraction
+        solid_volume_fraction_computed = sdf.volume_fraction
         assert_column_names_match_spec(solid_volume_fraction_computed, sample_data[0].system_spec)
+
+    def test_quantiles(self, sample_data):
+        sdf = StateDataFrame(sample_data)
+        quantiles = sdf.quantiles
+        assert quantiles.columns.nlevels == 3
+        assert np.all(quantiles.isna() | quantiles >= 0)
+
+        vol_weighted_quantiles = sdf.volume_weighted_quantiles
+        assert vol_weighted_quantiles.columns.nlevels == 3
+        assert np.all(vol_weighted_quantiles.isna() | vol_weighted_quantiles >= 0)
+
+    def test_nucleation_rates(self, sample_data):
+        sdf = StateDataFrame(sample_data)
+        nucleation_rates = sdf.nucleation_rates
+        assert nucleation_rates.columns.nlevels == 2
+
+    def test_gds(self, sample_data):
+        # TODO: multidimensional is not tested
+        sdf = StateDataFrame(sample_data)
+        gds = sdf.gds
+        assert gds.columns.nlevels == 3
+
+    def test_profiling(self, sample_data):
+        sdf = StateDataFrame(sample_data)
+        profiling = sdf.profiling
+        assert True
+
+    def test_csd(self, sample_data):
+        sdf = StateDataFrame(sample_data)
+        edges = np.linspace(0, 1000e-6, 100)
+        grids = edges_to_center_grid(edges)
+        csd = sdf.get_csd(edges)
+        lcsd = csd.applymap(lambda x: len(x))
+        assert np.all(lcsd == len(grids))

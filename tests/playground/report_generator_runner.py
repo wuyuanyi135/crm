@@ -8,7 +8,7 @@ def main():
     options = ReportOptions(debug=True)
     generator = ReportGenerator(options, meta, HypotheticalPolymorphic1D())
 
-    data = get_sample_data_polymorphic()
+    data = get_sample_data_polymorphic(time=1800, time_step=1)
 
     generator.generate_report(data)
 

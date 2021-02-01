@@ -1,3 +1,4 @@
+import functools
 from typing import List
 
 import numpy as np
@@ -26,9 +27,10 @@ class FormSpec:
         """
         raise NotImplementedError()
 
-    def growth_rate(self, t: float, ss: float, n: np.ndarray = None) -> np.ndarray:
+    def growth_rate(self, t: float, ss: float, n: np.ndarray = None, state: State = None) -> np.ndarray:
         """
 
+        :param state:
         :param n:
         :param t: Temperature in degrees C
         :param ss: supersaturation in (c - c*) / c*
@@ -36,9 +38,10 @@ class FormSpec:
         """
         raise NotImplementedError()
 
-    def dissolution_rate(self, t: float, ss: float, n: np.ndarray = None) -> np.ndarray:
+    def dissolution_rate(self, t: float, ss: float, n: np.ndarray = None, state: State = None) -> np.ndarray:
         """
         see @growth_rate. This should return a negative value.
+        :param state:
         :param n:
         :param t:
         :param ss:
@@ -46,9 +49,10 @@ class FormSpec:
         """
         raise NotImplementedError()
 
-    def nucleation_rate(self, t: float, ss: float, vf: float) -> np.ndarray:
+    def nucleation_rate(self, t: float, ss: float, vf: float, state: State = None) -> np.ndarray:
         """
 
+        :param state:
         :param t:
         :param ss:
         :param vf: volume fraction
@@ -59,16 +63,19 @@ class FormSpec:
     def volume_fraction(self, n: np.ndarray):
         """
         Compute the volume fraction (vol solid/vol liquid)
-        :param n: the list element of the n in solver state, corresponding to the form.
+        :param n:
         :return:
         """
         if n.shape[0] == 0:
             # when there is no rows
             return 0
 
-        ret = (np.prod(n[:, :-1] ** self.volume_fraction_powers, axis=1) * self.shape_factor * n[:, -1]).sum(axis=0)
+        ret = self.particle_volume(n).sum(axis=0)
 
         return ret
+
+    def particle_volume(self, n: np.ndarray):
+        return np.prod(n[:, :-1] ** self.volume_fraction_powers, axis=1) * self.shape_factor * n[:, -1]
 
 
 class ParametricFormSpec(FormSpec):
@@ -130,7 +137,7 @@ class ParametricFormSpec(FormSpec):
         length = len(self.solubility_coefs)
         return (self.solubility_coefs * np.ones((length,)) * t ** np.arange(0, length)).sum()
 
-    def growth_rate(self, t: float, ss: float, n: np.ndarray = None) -> np.ndarray:
+    def growth_rate(self, t: float, ss: float, n: np.ndarray = None, state=None) -> np.ndarray:
         R = 8.3145
         if self.g_betas == 0:
             return self.g_coefs * ss ** self.g_powers * np.exp(-self.g_eas / R / (t + 273.15))
@@ -138,7 +145,7 @@ class ParametricFormSpec(FormSpec):
             return self.g_coefs * ss ** self.g_powers * (1 + self.g_betas) * n[:, :-1] * np.exp(
                 -self.g_eas / R / (t + 273.15))
 
-    def dissolution_rate(self, t: float, ss: float, n: np.ndarray = None) -> np.ndarray:
+    def dissolution_rate(self, t: float, ss: float, n: np.ndarray = None, state=None) -> np.ndarray:
         R = 8.3145
         if self.d_betas == 0:
             return self.d_coefs * ss ** self.d_powers * np.exp(-self.d_eas / R / (t + 273.15))
@@ -146,7 +153,7 @@ class ParametricFormSpec(FormSpec):
             return self.d_coefs * ss ** self.d_powers * (1 + self.d_betas) * n[:, :-1] * np.exp(
                 -self.d_eas / R / (t + 273.15))
 
-    def nucleation_rate(self, t: float, ss: float, vf: float) -> np.ndarray:
+    def nucleation_rate(self, t: float, ss: float, vf: float, state=None) -> np.ndarray:
         R = 8.3145
         tk = t + 273.15
         pn = self.pn_coef * ss ** self.pn_power * np.exp(-self.pn_ke / R / np.log(ss + 1) ** 2) * np.exp(
@@ -178,3 +185,11 @@ class SystemSpec:
 
     def get_form_names(self):
         return [f.name for f in self.forms]
+
+    def get_form_by_name(self, name):
+        fm = self._form_mapping()
+        return fm[name]
+
+    @functools.lru_cache()
+    def _form_mapping(self):
+        return {f.name: f for f in self.forms}

@@ -6,7 +6,7 @@ import numpy as np
 from crm.base.solver import SolverMeta
 from crm.base.state import State
 from crm.base.system_spec import SystemSpec
-from crm.utils.pandas import state_list_to_dataframes
+from crm.utils.pandas import StateDataFrame
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
@@ -41,9 +41,6 @@ class ReportOptions:
     debug: bool = False
 
 
-DictDfType = Dict[str, pd.DataFrame]
-
-
 class ReportGenerator:
     """
     Generate a dash html report
@@ -60,6 +57,7 @@ class ReportGenerator:
         :param states:
         :return:
         """
+
         app = self.create_dash_layout(states)
         app.run_server(debug=self.options.debug)
 
@@ -82,32 +80,23 @@ class ReportGenerator:
             )
         ])
 
-    def create_temperature_profile(self, dict_df: DictDfType):
+    def create_temperature_profile(self, sdf: StateDataFrame):
         if not self.options.temperature_profile:
             return None
 
-        fig = self._timeseries_plot(dict_df["ct"]["temperature"], plot_fcn=px.line,
+        fig = self._timeseries_plot(sdf.temperature, plot_fcn=px.line,
                                     ylabel="Temperature (degc)")
         return html.Div(children=[
             html.H3("Temperature Profile"),
             dcc.Graph(figure=fig)
         ])
 
-    def create_concentration_profile(self, dict_df: DictDfType):
+    def create_concentration_profile(self, sdf: StateDataFrame):
         if not self.options.concentration_profile:
             return None
-
-        df = dict_df["ct"]["concentration"]
-
+        df = sdf.concentration
         if self.options.solubility_in_concentration_profile:
-            if not "sol" in dict_df:
-                if self.options.compute_solubility:
-                    t = dict_df["ct"]["temperature"]
-                    sols = [f.solubility(t) for f in self.system_spec.forms]
-                else:
-                    sols = None
-            else:
-                sols = dict_df["sol"].loc[:, "sol"]
+            sols = sdf.solubility
 
             df = pd.concat([df, sols], axis=1)
 
@@ -118,7 +107,7 @@ class ReportGenerator:
             dcc.Graph(figure=fig_conc)
         ]
         if self.options.supersaturation_profile:
-            df = dict_df["sol"].loc[:, "ss"]
+            df = sdf.supersaturation
             fig_ss = self._timeseries_plot(df, ylabel="Supersaturation", plot_fcn=px.line)
             children.extend([
                 html.H3("Supersaturation Profile"),
@@ -126,17 +115,19 @@ class ReportGenerator:
             ])
         return html.Div(children=children)
 
-    def create_particle_count_profile(self, dict_df):
+    def create_volume_fraction_profile(self, sdf: StateDataFrame):
+        vfs = sdf.volume_fraction
+        fig = self._timeseries_plot(vfs * 100, plot_fcn=px.line, ylabel="%")
+        return html.Div(children=[
+            html.H3("Volume Fraction Profile"),
+            dcc.Graph(figure=fig)
+        ])
+
+    def create_particle_count_profile(self, sdf: StateDataFrame):
         if not self.options.particle_count_profile:
             return None
 
-        n = dict_df["n"][["n"]]
-
-        def compute_count(x: pd.Series):
-            return x.apply(lambda xx: xx[:, -1].sum())
-
-        counts = n.apply(compute_count)
-        counts = counts.droplevel(0, axis=1)
+        counts = sdf.counts
         fig = self._timeseries_plot(counts, plot_fcn=px.line, ylabel="Count (#/m^3)")
         fig.update_yaxes(type="log")
         return html.Div(children=[
@@ -144,29 +135,12 @@ class ReportGenerator:
             dcc.Graph(figure=fig)
         ])
 
-    def create_particle_size_profile(self, dict_df):
+    def create_particle_size_profile(self, sdf: StateDataFrame):
         if not self.options.particle_size_profile:
             return None
 
-        n = dict_df["n"][["n"]]
-        n = n.droplevel(0, axis=1)
-        dfs = []
-
-        def compute_quantile(x: np.ndarray, names):
-            if x.shape[0] == 0:
-                q = [None, None, None]
-            else:
-                q = np.quantile(x[:, 0], [0.1, 0.5, 0.9])
-            return pd.Series(q, index=names)
-
-        for i, form_n in n.iteritems():
-            names = ["D10", "D50", "D90"]
-            names = [f"{i}_{n}" for n in names]
-            # ND is not supported yet.
-            df = form_n.apply(lambda x: compute_quantile(x, names))
-            dfs.append(df)
-        sizes = pd.concat(dfs, axis=1)
-        sizes.index = n.index
+        sizes = sdf.quantiles
+        sizes = self._multiindex_to_flatten_index(sizes)
 
         fig = self._timeseries_plot(sizes, plot_fcn=px.line, ylabel="Size (m)")
         fig.update_yaxes(type="log")
@@ -175,26 +149,49 @@ class ReportGenerator:
             dcc.Graph(figure=fig)
         ])
 
-    def create_result(self, dict_df: DictDfType):
+    def create_kinetics_profile(self, sdf: StateDataFrame):
+        nucleation = sdf.nucleation_rates
+        nucleation = self._multiindex_to_flatten_index(nucleation)
+
+        gds = sdf.gds
+        gds = self._multiindex_to_flatten_index(gds)
+
+        fig_nuc = self._timeseries_plot(nucleation, plot_fcn=px.line, ylabel="Count (#/m^3/s)")
+        fig_nuc.update_yaxes(type="log")
+
+        fig_gds = self._timeseries_plot(gds, plot_fcn=px.line, ylabel="GD (m/s)")
+
+        return html.Div(children=[
+            html.H3("Nucleation Rates"),
+            dcc.Graph(figure=fig_nuc),
+            html.H3("Growth/Dissolution Rates"),
+            dcc.Graph(figure=fig_gds),
+        ])
+
+    def create_result(self, sdf: StateDataFrame):
         return html.Div(id="result-container", children=[
             html.H2("Bulk Properties"),
-            self.create_temperature_profile(dict_df),
-            self.create_concentration_profile(dict_df),
+            self.create_temperature_profile(sdf),
+            self.create_concentration_profile(sdf),
+            self.create_volume_fraction_profile(sdf),
 
             html.H2("Particle Properties"),
-            self.create_particle_count_profile(dict_df),
-            self.create_particle_size_profile(dict_df),
+            self.create_particle_count_profile(sdf),
+            self.create_particle_size_profile(sdf),
+
+            html.H2("Kinetics"),
+            self.create_kinetics_profile(sdf),
         ])
 
     def create_dash_layout(self, states: List[State]):
-        dict_df = state_list_to_dataframes(states, self.system_spec)
+        sdf = StateDataFrame(states)
         app = dash.Dash(self.options.name)
 
         app.layout = html.Div(id="container", children=[
             html.H1(children=self.options.title),
             self.create_meta(),
 
-            self.create_result(dict_df),
+            self.create_result(sdf),
 
             html.Button("Shutdown", id="shutdown-button", n_clicks=0) if self.options.shutdown_button else None,
             html.Div(id="status"),
@@ -220,3 +217,9 @@ class ReportGenerator:
             fig.update_layout(yaxis_title=ylabel)
         fig.update_layout(legend_title_text=None)
         return fig
+
+    def _multiindex_to_flatten_index(self, df):
+        flat_index = df.columns.to_flat_index()
+        flat_index = ["_".join([str(x) for x in f]) for f in flat_index]
+        df.columns = flat_index
+        return df
