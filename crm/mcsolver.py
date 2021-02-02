@@ -46,6 +46,9 @@ class MCSolver(Solver):
         return MCSolverOptions
 
     def update_nucleation(self, n: np.ndarray, nucleation_rates: np.ndarray, time_step: float) -> np.ndarray:
+        if np.all(nucleation_rates == 0):
+            # when no nucleation do not append new row.
+            return n
         ncols = n.shape[1]
         nuclei_row = np.zeros((1, ncols))
         nuclei_row[:-1] = self.options.nuclei_sizes

@@ -7,7 +7,7 @@ class Input:
     """
 
     def transform(self, state: State) -> State:
-        pass
+        return state
 
 
 class ConstTemperatureInput(Input):

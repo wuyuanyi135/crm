@@ -1,5 +1,6 @@
 import pytest
-
+from scipy.stats.distributions import norm
+from crm.base.state import sample_n_from_distribution
 from crm.presets.hypothetical import Hypothetical1D
 from tests.get_data import get_sample_data
 import numpy as np
@@ -30,3 +31,11 @@ def test_copy_independent():
 
     state.n.append(np.array([]))
     assert len(state.n) != len(state_copy.n)
+
+
+def test_sample_n_from_distribution():
+    grid = np.linspace(0, 200e-6, 100)
+    count = norm.pdf(grid, scale=10, loc=50)
+    n = sample_n_from_distribution(grid, count)
+
+    print(n)
