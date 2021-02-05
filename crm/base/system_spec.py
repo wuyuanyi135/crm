@@ -148,10 +148,11 @@ class ParametricFormSpec(FormSpec):
 
     def dissolution_rate(self, t: float, ss: float, n: np.ndarray = None, state=None) -> np.ndarray:
         R = 8.3145
+        ss = - ss
         if np.all(self.d_betas == 0):
-            return self.d_coefs * ss ** self.d_powers * np.exp(-self.d_eas / R / (t + 273.15))
+            return - self.d_coefs * ss ** self.d_powers * np.exp(-self.d_eas / R / (t + 273.15))
         else:
-            return self.d_coefs * ss ** self.d_powers * (1 + self.d_betas) * n[:, :-1] * np.exp(
+            return - self.d_coefs * ss ** self.d_powers * (1 + self.d_betas) * n[:, :-1] * np.exp(
                 -self.d_eas / R / (t + 273.15))
 
     def nucleation_rate(self, t: float, ss: float, vf: float, state=None) -> np.ndarray:

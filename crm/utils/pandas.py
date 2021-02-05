@@ -172,18 +172,51 @@ class StateDataFrame:
     def volume_weighted_quantiles(self) -> PolymorphicTSProperty:
         return self.get_quantiles(weight="volume")
 
-    def get_csd(self, edge=None, weight=None):
+    def get_csd(self, edge, weight=None):
         """
-        get the csd on the given grid. grid should be the returned value of np.meshgrid
-        #TODO: multidimensional is not implemented
+        Get the csd on the given grid. When multidimensional system spec is used, the 1D size distribution of each
+        dimension will be returned.
         :param edge:
         :param weight:
         :return:
+        level 1: form name
+        level 2: dimension name
+        Each cell stores a one dimensional np.array.
         """
         n = self.n
+        dimension_ids = [range(f.dimensionality) for f in self._system_spec.forms]
+        levels = []
+        for fn, dim in zip(self.form_names, dimension_ids):
+            for d in dim:
+                levels.append((fn, d))
+        columns = pd.MultiIndex.from_tuples(levels)
 
-        return n.applymap(lambda x: np.histogram(x[:, 0], edge, weights=x[:, -1])[0])
+        data = []
+        for form_id, form in enumerate(n.columns):
+            form_series = n[form]
 
+            def find_hist_each_dim(x, dimensionality):
+                ret = []
+                for i in range(dimensionality):
+                    hist = np.histogram(x[:, i], edge, weights=x[:, -1])[0]
+                    ret.append(hist)
+
+                return pd.Series(ret)
+            dimensionality = self._system_spec.forms[form_id].dimensionality
+            data.append(form_series.apply(lambda x: find_hist_each_dim(x, dimensionality)))
+        df = pd.concat(data, axis=1)
+        df.columns = columns
+
+        return df
+
+    def get_csd_nd(self, edge_grid, weight=None):
+        """
+        Return multi-dimensional CSD matching the edge grid.
+        :param edge_grid:
+        :param weight:
+        :return:
+        """
+        raise NotImplementedError()
 
     # kinetics:
     @functools.cached_property
@@ -290,70 +323,3 @@ class StateDataFrame:
                                                                                                         self.df_raw[
                                                                                                             "n"].iloc[
                                                                                                             0][0]))]
-
-# def make_state_df(
-#         states: List[State],
-# ) -> StateDataFrame:
-#     system_spec = states[0].system_spec
-#     # time stamp is the common index
-#     d = [x.__dict__ for x in states]
-#     df = pd.DataFrame.from_records(d).set_index("time")
-#     time = df.index
-#     form_names = system_spec.get_form_names() if system_spec is not None else [f"form_{i}" for i in
-#                                                                                range(len(df["n"].iloc[0][0]))]
-#     df_concentration = df[["concentration"]]
-#     df_temperature = df[["temperature"]]
-#     df_n = pd.DataFrame(df["n"].tolist(), columns=form_names, index=time)
-#
-#     df_extra = pd.DataFrame(df["extra"].tolist(), index=time)
-#
-#     # check whether solubility is available in the extra information
-#
-#     StateDataFrame(
-#         system_spec=system_spec,
-#         states=states,
-#         time=time,
-#         concentration=df_concentration,
-#         temperature=df_temperature,
-#         n=df_n,
-#
-#     )
-#
-#     try:
-#         df_extra = pd.DataFrame(df["extra"].tolist(), index=time)
-#
-#         try:
-#             vf_index = pd.MultiIndex.from_product([("vf",), form_names])
-#             df_vf = pd.DataFrame(df_extra["vfs"].tolist(), columns=vf_index, index=time)
-#             ret["vf"] = df_vf
-#         except KeyError:
-#             pass
-#
-#         try:
-#             nuc_col_index = pd.MultiIndex.from_product([form_names, ("pn", "sn")])
-#             df_nuc = pd.DataFrame(np.array(df_extra["nucleation"].values.tolist()).reshape((-1, 2 * len(form_names))),
-#                                   index=time, columns=nuc_col_index).swaplevel(axis=1).sort_index(1)
-#             ret["nucleation"] = df_nuc
-#         except KeyError:
-#             pass
-#
-#         try:
-#             df_profiling = pd.DataFrame.from_dict(df_extra["profiling"].tolist())
-#             df_profiling.index = time
-#             ret["profiling"] = df_profiling
-#         except KeyError:
-#             pass
-#
-#         try:
-#             sol_ss_col_index = pd.MultiIndex.from_product([("sol", "ss"), form_names])
-#             df_sol_ss = pd.DataFrame(
-#                 np.array(df_extra[["sols", "sses"]].values.tolist()).reshape(-1, 2 * len(form_names)),
-#                 columns=sol_ss_col_index, index=time)
-#             ret["sol"] = df_sol_ss
-#         except KeyError:
-#             pass
-#
-#     except KeyError:
-#         pass
-#
-#     return ret

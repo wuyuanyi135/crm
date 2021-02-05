@@ -197,6 +197,7 @@ class ReportGenerator:
             t = time[idx]
             csd = csds.loc[t]
             df = pd.DataFrame(data=csd.tolist(), columns=grids, index=csds.columns).T
+            df = self._multiindex_to_flatten_index(df)
             fig = px.line(df)
             fig.update_layout(xaxis_title="Size (m)", yaxis_title="Count (#/m^3)", )
 
