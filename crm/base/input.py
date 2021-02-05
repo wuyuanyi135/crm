@@ -35,7 +35,7 @@ class LinearTemperatureInput(Input):
             self.cooling = False
 
     def transform(self, state: State) -> State:
-        set_point = self.start_temperature + self.abs_rate * state.time
+        set_point = self.start_temperature + self.rate * state.time
         if (set_point <= self.end_temperature and self.cooling) or (
                 set_point >= self.end_temperature and not self.cooling):
             set_point = self.end_temperature
