@@ -4,7 +4,13 @@ Hypothetical crystallization kinetics for testing
 import numpy as np
 
 from crm.base.system_spec import SystemSpec, FormSpec, ParametricFormSpec
-
+__all__ = [
+    "Hypothetical1D",
+    "HypotheticalPolymorphic1D",
+    "HypotheticalEqualGrowth2D",
+    "Hypothetical2D",
+    "HypotheticalPolymorphicEqualGrowth2D",
+]
 
 class Hypothetical1D(SystemSpec):
     forms = [ParametricFormSpec(

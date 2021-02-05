@@ -96,7 +96,7 @@ class Solver:
             state = self.attach_extra(state, is_initial, **kwargs)
             output_spec.update_output(state)
 
-    def profiling(self, profiling: dict, name: str):
+    def make_profiling(self, profiling: dict, name: str):
         if profiling is None:
             return
 
@@ -106,9 +106,9 @@ class Solver:
 
         if name in profiling:
             # second entrace
-            profiling[name] = time.time() - profiling[name]
+            profiling[name] = time.perf_counter() - profiling[name]
         else:
-            profiling[name] = time.time()
+            profiling[name] = time.perf_counter()
 
     def compute(
             self,
@@ -153,7 +153,7 @@ class Solver:
             nucleation_rate_list = []
             gds = []
             for i, (f, n) in enumerate(zip(forms, state.n)):
-                self.profiling(profiling, f"kinetics_form_{f.name}")
+                self.make_profiling(profiling, f"kinetics_form_{f.name}")
                 sol = f.solubility(state.temperature)
                 ss = system_spec.supersaturation(sol, state.concentration)
                 if ss == solubility_break_point:
@@ -173,7 +173,7 @@ class Solver:
                 time_steps.append(time_step)
                 nucleation_rate_list.append(nucleation_rates)
                 gds.append(gd)
-                self.profiling(profiling, f"kinetics_form_{f.name}")
+                self.make_profiling(profiling, f"kinetics_form_{f.name}")
             sols = np.array(sols)
             sses = np.array(sses)
             time_steps = np.array(time_steps)
@@ -185,23 +185,23 @@ class Solver:
 
             # update n
             for i, f in enumerate(forms):
-                self.profiling(profiling, f"update_n_{f.name}")
+                self.make_profiling(profiling, f"update_n_{f.name}")
                 ss = sses[i]
                 if ss > solubility_break_point:
                     state.n[i] = self.update_nucleation(state.n[i], nucleation_rate_list[i], time_step)
                     state.n[i] = self.update_growth(state.n[i], gds[i], time_step)
                 elif ss < solubility_break_point:
                     state.n[i] = self.update_dissolution(state.n[i], gds[i], time_step)
-                self.profiling(profiling, f"update_n_{f.name}")
+                self.make_profiling(profiling, f"update_n_{f.name}")
             vfs_new = np.array([f.volume_fraction(n) for f, n in zip(forms, state.n)])
 
-            self.profiling(profiling, "update_concentration")
+            self.make_profiling(profiling, "update_concentration")
             mass_diffs = (vfs_new - vfs) * densities
             state.concentration = self.update_concentration(state.concentration, mass_diffs, time_step)
             vfs = vfs_new
-            self.profiling(profiling, "update_concentration")
+            self.make_profiling(profiling, "update_concentration")
 
             state.time += time_step
             self.process_output(state, output_spec, end_time, profiling=profiling)
-            self.profiling(profiling, "ram")
+            self.make_profiling(profiling, "ram")
         return output_spec.get_outputs()

@@ -27,7 +27,7 @@ class ReportOptions:
 
     shutdown_button: bool = True
 
-    meta: bool = True
+    meta: bool = False
 
     temperature_profile: bool = True
 
@@ -249,7 +249,7 @@ class ReportGenerator:
 
         app.layout = html.Div(id="container", children=[
             html.H1(children=self.options.title),
-            # self.create_meta(),
+            self.create_meta(),
 
             self.create_result(sdf, app),
 
