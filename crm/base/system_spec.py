@@ -130,7 +130,8 @@ class ParametricFormSpec(FormSpec):
         self.sn_ea = sn_ea
 
         self.shape_factor = shape_factor
-        self.volume_fraction_powers = volume_fraction_powers or self.volume_fraction_powers
+        if self.volume_fraction_powers is not None:
+            self.volume_fraction_powers = volume_fraction_powers
         self.density = density
 
     def solubility(self, t: float) -> float:
@@ -139,7 +140,7 @@ class ParametricFormSpec(FormSpec):
 
     def growth_rate(self, t: float, ss: float, n: np.ndarray = None, state=None) -> np.ndarray:
         R = 8.3145
-        if self.g_betas == 0:
+        if np.all(self.g_betas == 0):
             return self.g_coefs * ss ** self.g_powers * np.exp(-self.g_eas / R / (t + 273.15))
         else:
             return self.g_coefs * ss ** self.g_powers * (1 + self.g_betas) * n[:, :-1] * np.exp(
@@ -147,7 +148,7 @@ class ParametricFormSpec(FormSpec):
 
     def dissolution_rate(self, t: float, ss: float, n: np.ndarray = None, state=None) -> np.ndarray:
         R = 8.3145
-        if self.d_betas == 0:
+        if np.all(self.d_betas == 0):
             return self.d_coefs * ss ** self.d_powers * np.exp(-self.d_eas / R / (t + 273.15))
         else:
             return self.d_coefs * ss ** self.d_powers * (1 + self.d_betas) * n[:, :-1] * np.exp(

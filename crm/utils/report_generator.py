@@ -83,6 +83,7 @@ class ReportGenerator:
                 id="meta-table",
                 columns=[{"name": i, "id": i} for i in df.columns],
                 data=df.to_dict('records'),
+
             )
         ])
 
@@ -182,7 +183,8 @@ class ReportGenerator:
         csds = sdf.get_csd(edges)
         grids = edges_to_center_grid(edges)
         children = html.Div(children=[
-            dcc.Slider(id="csd-slider", min=time.min(), max=time.max(), value=time.min(), step=1, tooltip=dict(always_visible=True)),
+            dcc.Slider(id="csd-slider", min=time.min(), max=time.max(), value=time.min(), step=1,
+                       tooltip=dict(always_visible=True)),
             dcc.Graph(id="csd"),
         ])
 
@@ -206,6 +208,20 @@ class ReportGenerator:
 
         return children
 
+    def create_profiling(self, sdf: StateDataFrame):
+        ram = sdf.profiling[["ram"]]
+        not_ram = ~sdf.profiling.columns.isin(["ram"])
+
+        profiling = sdf.profiling.loc[:, not_ram]
+        fig = self._timeseries_plot(profiling, plot_fcn=px.line, ylabel="Computation Time (s)")
+        fig.update_yaxes(type="log")
+
+        fig_ram = self._timeseries_plot(ram, plot_fcn=px.line, ylabel="Memory (bytes)")
+        return html.Div(children=[
+            dcc.Graph(figure=fig, id="figure-profiling"),
+            dcc.Graph(figure=fig_ram, id="figure-ram"),
+        ])
+
     def create_result(self, sdf: StateDataFrame, app):
         return html.Div(id="result-container", children=[
             html.H2("Bulk Properties"),
@@ -222,6 +238,9 @@ class ReportGenerator:
 
             html.H2("CSD"),
             self.create_csd(sdf, app),
+
+            html.H2("Profiling"),
+            self.create_profiling(sdf)
         ])
 
     def create_dash_layout(self, states: List[State]):
@@ -230,7 +249,7 @@ class ReportGenerator:
 
         app.layout = html.Div(id="container", children=[
             html.H1(children=self.options.title),
-            self.create_meta(),
+            # self.create_meta(),
 
             self.create_result(sdf, app),
 
@@ -251,7 +270,7 @@ class ReportGenerator:
 
     def _timeseries_plot(self, df: pd.DataFrame, plot_fcn: Callable = px.scatter, xlabel: str = "Time (s)",
                          ylabel: str = None):
-        fig = plot_fcn(df)
+        fig = plot_fcn(df, render_mode="svg")
         if xlabel is not None:
             fig.update_layout(xaxis_title=xlabel)
         if ylabel is not None:
