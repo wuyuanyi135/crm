@@ -130,7 +130,7 @@ class ParametricFormSpec(FormSpec):
         self.sn_ea = sn_ea
 
         self.shape_factor = shape_factor
-        if self.volume_fraction_powers is not None:
+        if volume_fraction_powers is not None:
             self.volume_fraction_powers = volume_fraction_powers
         self.density = density
 
@@ -168,6 +168,9 @@ class SystemSpec:
     forms: List[FormSpec]
 
     solubility_break_point = 0
+
+    def __init__(self, name=None):
+        self.name = name or self.__class__.__name__
 
     @staticmethod
     def supersaturation(solubility: float, concentration: float):

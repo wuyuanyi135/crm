@@ -1,6 +1,7 @@
 import pytest
 
 from crm.mcsolver import MCSolverOptions
+from crm.presets.hypothetical import Hypothetical2D
 from tests.get_data import get_sample_data, get_sample_data_polymorphic
 from crm.utils.pandas import StateDataFrame
 from crm.utils.csd_grid import edges_to_center_grid
@@ -8,8 +9,9 @@ import pandas as pd
 import numpy as np
 
 sample_data = {
-    "sample_state_1d": get_sample_data(),
-    "sample_state_polymorph_1d": get_sample_data_polymorphic(),
+    "1d": get_sample_data(),
+    "polymorph_1d": get_sample_data_polymorphic(),
+    "2d": get_sample_data(system_spec=Hypothetical2D()),
 }
 
 
