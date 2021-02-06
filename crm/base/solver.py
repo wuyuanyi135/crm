@@ -1,13 +1,13 @@
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Type, List, Dict
+from typing import Type, List, Dict, Tuple
 
 import numpy as np
 
-from crm.base.input import Input
+from crm.base.input import Input, ContinuousInput
 from crm.base.output_spec import OutputSpec, OutputAllSpec
-from crm.base.state import State
+from crm.base.state import State, InletState
 from crm.base.system_spec import SystemSpec
 from crm.utils.git import get_commit_hash
 import os, psutil
@@ -34,6 +34,10 @@ class SolverOptions:
     max_time_step: float = 10.0
 
     profiling: bool = False
+
+    # In continuous mode, the removal mechanism does not completely eliminate a blob of particle. This removal ensures
+    # finite growth in the long run.
+    continuous_leftover_removal_threshold: float = 1e2
 
 
 class Solver:
@@ -76,6 +80,33 @@ class Solver:
 
     def update_concentration(self, concentration: float, mass_diffs: np.ndarray, time_step: float) -> float:
         raise NotImplementedError()
+
+    def update_with_inlet(self, state: State, inlet: InletState, time_step: float) -> State:
+        """
+        Assume the total volume does not change (i.e., same amount of in and out flows)
+        :param state:
+        :param inlet:
+        :param time_step:
+        :return:
+        """
+        rt = inlet.rt
+        state.temperature += time_step / rt * (inlet.temperature - state.temperature)
+        state.concentration += time_step / rt * (inlet.concentration - state.concentration)
+        n_in = inlet.n.copy()
+        for n in n_in:
+            n[:, -1] *= time_step / rt
+
+        n_left = state.n.copy()
+        for i, n in enumerate(n_left):
+            n[:, -1] *= (1 - time_step / rt)
+            should_remove = n[:, -1] <= self.options.continuous_leftover_removal_threshold
+            # TODO: don't just remove, send them to next stage if available.
+            n_left[i] = n[~should_remove]
+
+        for i in range(len(state.n)):
+            state.n[i] = np.vstack([n_in[i], n_left[i]])
+
+        return state
 
     def attach_extra(
             self,
@@ -182,6 +213,13 @@ class Solver:
             time_step = self.post_time_step(time_steps)
             if state.time + time_step > end_time:
                 time_step = end_time - state.time
+
+            # if the input contains continuous inlet
+            inlet_spec = input_.inlet(state)
+            if inlet_spec is not None:
+                state = self.update_with_inlet(state, inlet_spec, time_step)
+                # re calculate vfs since the CSD may have been modified by the IO flow.
+                vfs = np.array([f.volume_fraction(n) for f, n in zip(forms, state.n)])
 
             # update n
             for i, f in enumerate(forms):

@@ -1,4 +1,6 @@
-from crm.base.state import State
+from typing import Union, Tuple, List
+
+from crm.base.state import State, InletState
 
 
 class Input:
@@ -8,6 +10,37 @@ class Input:
 
     def transform(self, state: State) -> State:
         return state
+
+    def inlet(self, state: State) -> Union[Tuple[State, float], None]:
+        """
+        Inlet specification. The conditions affected by the time step will be specified here.
+        :param state:
+        :return: tuple of (state, rt) or None if no continuous IO
+        """
+        return None
+
+
+class InputAssembler(Input):
+    """
+    Merge multiple input instances
+    """
+
+    def __init__(self, inputs: List[Input]):
+        super().__init__()
+        self.inputs = inputs
+
+    def transform(self, state: State) -> State:
+        for i in self.inputs:
+            state = i.transform(state)
+        return state
+
+    def inlet(self, state: State) -> Union[InletState, None]:
+        inlet_states = []
+        for i in self.inputs:
+            inlet_state = i.inlet(state)
+            inlet_states.append(inlet_state)
+        merged = sum(inlet_states)
+        return merged
 
 
 class ConstTemperatureInput(Input):
@@ -41,3 +74,38 @@ class LinearTemperatureInput(Input):
             set_point = self.end_temperature
         state.temperature = set_point
         return state
+
+
+class ContinuousInput(Input):
+    def __init__(self, inlet_state: InletState):
+        """
+
+        :param rt: residence time
+        """
+        super().__init__()
+        self.inlet_state = inlet_state
+
+    def inlet(self, state: State) -> Union[InletState, None]:
+        return self.inlet_state
+
+
+class ContinuousInputFactory:
+    """
+    build inputs to connect two continuous crystallizer
+    """
+
+    def __init__(self, rt=1):
+        """
+
+        :type rt: residence time
+        """
+        super().__init__()
+        self.rt = rt
+
+    @property
+    def last_stage_output(self) -> ContinuousInput:
+        pass
+
+    @property
+    def this_stage_input(self) -> ContinuousInput:
+        pass

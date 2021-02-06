@@ -1,6 +1,6 @@
 import pytest
 from scipy.stats.distributions import norm
-from crm.base.state import sample_n_from_distribution
+from crm.base.state import sample_n_from_distribution, InletState
 from crm.presets.hypothetical import Hypothetical1D
 from tests.get_data import get_sample_data
 import numpy as np
@@ -39,3 +39,25 @@ def test_sample_n_from_distribution():
     n = sample_n_from_distribution(grid, count)
 
     print(n)
+
+
+def test_merge_inlet_states():
+    system_spec = Hypothetical1D()
+    state1 = system_spec.make_empty_state(state_type=InletState, concentration=1, temperature=25, rt=1)
+    state2 = system_spec.make_empty_state(state_type=InletState, concentration=1, temperature=25, rt=0.5)
+    merged = state1 + state2
+    assert np.isclose(merged.temperature, state1.temperature)
+    assert np.isclose(merged.temperature, state2.temperature)
+
+    assert np.isclose(merged.concentration, state1.concentration)
+    assert np.isclose(merged.concentration, state2.concentration)
+
+    assert np.isclose(merged.rt, 1 / 3)
+
+    state3 = system_spec.make_empty_state(state_type=InletState, concentration=2, temperature=15, rt=0.5,
+                                          n=[np.array([[1e-6, 1e9], [2e-6, 1e8]])])
+    merged = state1 + state3
+    assert np.isclose(merged.rt, 1 / 3)
+    assert np.isclose(merged.temperature, 18.33333333)
+    assert np.isclose(merged.concentration, 1.6666666)
+    assert np.all(merged.n[0] == state3.n[0])

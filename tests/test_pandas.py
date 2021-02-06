@@ -92,7 +92,7 @@ class TestStateDataFrame:
         sdf = StateDataFrame(sample_data)
         edges = np.linspace(0, 1000e-6, 100)
         grids = edges_to_center_grid(edges)
-        csd = sdf.get_csd(edges)
+        csd, edges = sdf.get_csd(edges)
         for csd_each_time in csd.itertuples(False):
             for csd_each_form in csd_each_time:
                 assert csd_each_form.shape[0] == len(grids)

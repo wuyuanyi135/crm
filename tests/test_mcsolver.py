@@ -1,8 +1,9 @@
 import pytest
 import numpy as np
 
-from crm.base.input import ConstTemperatureInput
+from crm.base.input import ConstTemperatureInput, ContinuousInput
 from crm.base.output_spec import OutputLastSpec
+from crm.base.state import InletState
 from crm.mcsolver import MCSolver, MCState, MCSolverOptions
 from crm.presets.hypothetical import Hypothetical1D, HypotheticalPolymorphic1D, Hypothetical2D, \
     HypotheticalEqualGrowth2D, HypotheticalPolymorphicEqualGrowth2D
@@ -73,3 +74,16 @@ def test_equal_growth_2d_polymorph_match_1d_polymorph():
     state_output_1d = solver1d.compute(state, 3600, input_)
 
     assert np.isclose(state_output_1d[-1].concentration, state_output_2d[-1].concentration)
+
+
+def test_continuous():
+    options = MCSolverOptions(attach_extra=True, profiling=True, output_spec=OutputLastSpec())
+    system_spec = Hypothetical1D()
+    concentration = system_spec.forms[0].solubility(60)
+    state = system_spec.make_empty_state(concentration=concentration, temperature=25)
+    solver = MCSolver(system_spec, options)
+
+    inlet_state = system_spec.make_empty_state(state_type=InletState, concentration=concentration, rt=600)
+    input_ = ContinuousInput(inlet_state)
+    output = solver.compute(state, 3600, input_=input_)
+    assert True

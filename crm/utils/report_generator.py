@@ -40,7 +40,6 @@ class ReportOptions:
 
     particle_size_profile: bool = True
 
-    csd_edges: np.ndarray = np.linspace(0, 300e-6, 100)
     csd_logx: bool = True
     csd_logy: bool = True
 
@@ -177,10 +176,9 @@ class ReportGenerator:
 
     def create_csd(self, sdf: StateDataFrame, app):
         time = sdf.time
-        edges = self.options.csd_edges
         logx = self.options.csd_logx
         logy = self.options.csd_logy
-        csds = sdf.get_csd(edges)
+        csds, edges = sdf.get_csd()
         grids = edges_to_center_grid(edges)
         children = html.Div(children=[
             dcc.Slider(id="csd-slider", min=time.min(), max=time.max(), value=time.min(), step=1,

@@ -172,7 +172,7 @@ class StateDataFrame:
     def volume_weighted_quantiles(self) -> PolymorphicTSProperty:
         return self.get_quantiles(weight="volume")
 
-    def get_csd(self, edge, weight=None):
+    def get_csd(self, edge=None, weight=None):
         """
         Get the csd on the given grid. When multidimensional system spec is used, the 1D size distribution of each
         dimension will be returned.
@@ -191,6 +191,17 @@ class StateDataFrame:
                 levels.append((fn, d))
         columns = pd.MultiIndex.from_tuples(levels)
 
+        if edge is None:
+            # find the maximum range as auto edge
+            def find_max(x):
+                if x.shape[0] == 0:
+                    return 0
+                else:
+                    return x[:, :-1].max()
+
+            max_vals = n.applymap(find_max)
+            edge = np.linspace(0, max_vals.values.max(), 100)
+
         data = []
         for form_id, form in enumerate(n.columns):
             form_series = n[form]
@@ -202,12 +213,14 @@ class StateDataFrame:
                     ret.append(hist)
 
                 return pd.Series(ret)
+
             dimensionality = self._system_spec.forms[form_id].dimensionality
             data.append(form_series.apply(lambda x: find_hist_each_dim(x, dimensionality)))
         df = pd.concat(data, axis=1)
         df.columns = columns
+        df.index = self.time
 
-        return df
+        return df, edge
 
     def get_csd_nd(self, edge_grid, weight=None):
         """

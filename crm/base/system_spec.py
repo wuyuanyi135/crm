@@ -1,5 +1,5 @@
 import functools
-from typing import List
+from typing import List, TypeVar
 
 import numpy as np
 
@@ -158,6 +158,7 @@ class ParametricFormSpec(FormSpec):
     def nucleation_rate(self, t: float, ss: float, vf: float, state=None) -> np.ndarray:
         R = 8.3145
         tk = t + 273.15
+
         pn = self.pn_coef * ss ** self.pn_power * np.exp(-self.pn_ke / R / np.log(ss + 1) ** 2) * np.exp(
             -self.pn_ea / R / tk)
         sn = self.sn_coef * ss ** self.sn_power * np.exp(-self.sn_ea / R / tk) * vf ** self.sn_vol_power
@@ -182,10 +183,9 @@ class SystemSpec:
         Make a state with correct number of n
         :return:
         """
-        state = state_type(**kwargs)
+        state = state_type(system_spec=self, **kwargs)
         if not "n" in kwargs:
             state.n = [np.array([]).reshape((0, f.dimensionality + 1)) for f in self.forms]  # dim + 1 for count column
-        state.system_spec = self
         return state
 
     def get_form_names(self):
