@@ -1,5 +1,5 @@
-from crm.base.input import ConstTemperatureInput
-from crm.mcsolver import MCSolverOptions, MCSolver
+from crm.base.input import ConstantTemperatureInput
+from solvers.mcsolver import MCSolverOptions, MCSolver
 from crm.presets.hypothetical import Hypothetical1D, HypotheticalPolymorphic1D
 
 
@@ -9,10 +9,10 @@ def get_sample_data(options: MCSolverOptions = None, system_spec=None, time=3600
 
     system_spec = system_spec or Hypothetical1D()
     concentration = concentration or system_spec.forms[0].solubility(60)
-    state = system_spec.make_empty_state(concentration=concentration, temperature=temperature)
+    state = system_spec.make_state(concentration=concentration, temperature=temperature)
 
     solver = MCSolver(system_spec, options)
-    input_ = input_ or ConstTemperatureInput(25.)
+    input_ = input_ or ConstantTemperatureInput(25.)
     state_output = solver.compute(state, time, input_)
     return state_output
 

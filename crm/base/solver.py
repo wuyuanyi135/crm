@@ -39,6 +39,10 @@ class SolverOptions:
     # finite growth in the long run.
     continuous_leftover_removal_threshold: float = 1e2
 
+    # when continuous input was used, the state might be updated by the inlet condition. This ensures the applied
+    # conditions (transform callback) is applied again after the continuous inlet updates the internal states.
+    apply_non_continuous_input_twice: bool = True
+
 
 class Solver:
     def __init__(self, system_spec: SystemSpec, options: SolverOptions = None):
@@ -69,6 +73,12 @@ class Solver:
         timestep = options.max_time_step if timestep > options.max_time_step else timestep
         return timestep
 
+    def pre_update_n(self, state, **kwargs):
+        pass
+
+    def post_solver_step(self, state: State, **kwargs):
+        pass
+
     def update_nucleation(self, n: np.ndarray, nucleation_rates: np.ndarray, time_step: float) -> np.ndarray:
         raise NotImplementedError()
 
@@ -92,9 +102,13 @@ class Solver:
         rt = inlet.rt
         state.temperature += time_step / rt * (inlet.temperature - state.temperature)
         state.concentration += time_step / rt * (inlet.concentration - state.concentration)
-        n_in = inlet.n.copy()
-        for n in n_in:
+        n_in_rate = inlet.n.copy()
+        n_in = []
+        for n in n_in_rate:
+            # must be copied other wise the inlet condition will be accidentally modified.
+            n = n.copy()
             n[:, -1] *= time_step / rt
+            n_in.append(n)
 
         n_left = state.n.copy()
         for i, n in enumerate(n_left):
@@ -218,9 +232,14 @@ class Solver:
             inlet_spec = input_.inlet(state)
             if inlet_spec is not None:
                 state = self.update_with_inlet(state, inlet_spec, time_step)
+
+                if options.apply_non_continuous_input_twice:
+                    state = input_.transform(state)
+
                 # re calculate vfs since the CSD may have been modified by the IO flow.
                 vfs = np.array([f.volume_fraction(n) for f, n in zip(forms, state.n)])
 
+            self.pre_update_n(state, profiling=profiling)
             # update n
             for i, f in enumerate(forms):
                 self.make_profiling(profiling, f"update_n_{f.name}")
@@ -240,6 +259,12 @@ class Solver:
             self.make_profiling(profiling, "update_concentration")
 
             state.time += time_step
+
+            self.post_solver_step(state, profiling=profiling)
+
             self.process_output(state, output_spec, end_time, profiling=profiling)
             self.make_profiling(profiling, "ram")
+
         return output_spec.get_outputs()
+
+

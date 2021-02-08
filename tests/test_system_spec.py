@@ -2,8 +2,9 @@ import pytest
 
 import numpy as np
 
+from crm.utils.csd import create_normal_distribution_n
 from crm.base.system_spec import SystemSpec
-from crm.presets.hypothetical import Hypothetical1D
+from crm.presets.hypothetical import Hypothetical1D, Hypothetical2D
 
 
 def test_hypothetical_kinetics():
@@ -42,3 +43,28 @@ def test_automatic_assign_class_name():
 
     spec = TestSpec()
     assert spec.name == "TestSpec"
+
+
+@pytest.mark.parametrize("system_spec_class", (Hypothetical1D, Hypothetical2D))
+def test_volume_average_size(system_spec_class):
+    # empty
+    system_spec = system_spec_class()
+    state = system_spec.make_state()
+    sz = system_spec.forms[0].volume_average_size(state.n[0])
+    dimensionality = system_spec.forms[0].dimensionality
+    assert np.allclose(sz, [0] * (dimensionality + 1))
+    assert sz.shape[0] == 1
+    assert sz.shape[1] == dimensionality + 1
+
+    # non_empty
+    num_rows = 200
+    lengths = np.random.random((num_rows, dimensionality))
+    count = np.random.random((num_rows, 1)) * 1e6
+    n = np.hstack([lengths, count])
+
+    sz = system_spec.forms[0].volume_average_size(n)
+
+    assert sz.shape[0] == 1
+    assert sz.shape[1] == dimensionality + 1
+    assert sz[:, -1] == n[:, -1].sum()
+    assert np.allclose(system_spec.forms[0].volume_fraction(n), system_spec.forms[0].volume_fraction(sz))

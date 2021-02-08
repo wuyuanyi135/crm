@@ -1,8 +1,8 @@
 from crm.base.state import InletState
 from crm.utils.report_generator import ReportGenerator, ReportOptions
-from crm.mcsolver import MCSolver
-from crm.base.input import ConstTemperatureInput, LinearTemperatureInput, ContinuousInput
-from tests.get_data import get_sample_data, get_sample_data_polymorphic
+from solvers.mcsolver import MCSolver
+from crm.base.input import ConstantTemperatureInput, LinearTemperatureInput, ContinuousInput
+from tests.get_data import get_sample_data
 import crm.presets.hypothetical as presets
 import argparse
 
@@ -20,13 +20,13 @@ def main():
     timestep = 1
     temperature = 25
     if input_method == "constant":
-        input_ = ConstTemperatureInput(25)
+        input_ = ConstantTemperatureInput(25)
     elif input_method == "linear":
         input_ = LinearTemperatureInput(40, 25, 0.5 / 60)
         temperature = 40
     elif input_method == "continuous":
         input_ = ContinuousInput(
-            system_spec.make_empty_state(state_type=InletState, temperature=25, concentration=concentration, rt=300))
+            system_spec.make_state(state_type=InletState, temperature=25, concentration=concentration, rt=300))
         simulation_time = 3600
     else:
         raise ValueError()

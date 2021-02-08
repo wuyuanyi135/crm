@@ -38,12 +38,16 @@ class InputAssembler(Input):
         inlet_states = []
         for i in self.inputs:
             inlet_state = i.inlet(state)
-            inlet_states.append(inlet_state)
-        merged = sum(inlet_states)
+            if inlet_state is not None:
+                inlet_states.append(inlet_state)
+
+        merged = inlet_states[0]
+        for i in inlet_states[1:]:
+            merged += i
         return merged
 
 
-class ConstTemperatureInput(Input):
+class ConstantTemperatureInput(Input):
     def __init__(self, temperature: float):
         self.temperature = temperature
 
@@ -87,25 +91,3 @@ class ContinuousInput(Input):
 
     def inlet(self, state: State) -> Union[InletState, None]:
         return self.inlet_state
-
-
-class ContinuousInputFactory:
-    """
-    build inputs to connect two continuous crystallizer
-    """
-
-    def __init__(self, rt=1):
-        """
-
-        :type rt: residence time
-        """
-        super().__init__()
-        self.rt = rt
-
-    @property
-    def last_stage_output(self) -> ContinuousInput:
-        pass
-
-    @property
-    def this_stage_input(self) -> ContinuousInput:
-        pass

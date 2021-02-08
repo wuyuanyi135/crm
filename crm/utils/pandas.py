@@ -122,6 +122,15 @@ class StateDataFrame:
         n = pd.DataFrame(n.tolist()).set_axis(self.form_names, axis=1)
         return n
 
+    @functools.cached_property
+    def n_rows(self) -> pd.DataFrame:
+        """
+        Get the number of rows of n at each time point.
+        :return:
+        """
+        n = self.n
+        return n.applymap(lambda x: x.shape[0])
+
     def get_quantiles(self, weight=None) -> PolymorphicTSProperty:
         """
         Multi-index columns:

@@ -1,12 +1,10 @@
-import pytest
 import numpy as np
 
-from crm.base.input import ConstTemperatureInput, ContinuousInput
+from crm.base.input import ConstantTemperatureInput, ContinuousInput
 from crm.base.output_spec import OutputLastSpec
 from crm.base.state import InletState
-from crm.mcsolver import MCSolver, MCState, MCSolverOptions
-from crm.presets.hypothetical import Hypothetical1D, HypotheticalPolymorphic1D, Hypothetical2D, \
-    HypotheticalEqualGrowth2D, HypotheticalPolymorphicEqualGrowth2D
+from solvers.mcsolver import MCSolver, MCSolverOptions
+from crm.presets.hypothetical import Hypothetical1D, HypotheticalPolymorphic1D, HypotheticalEqualGrowth2D, HypotheticalPolymorphicEqualGrowth2D
 
 
 def test_simple():
@@ -14,10 +12,10 @@ def test_simple():
 
     system_spec = Hypothetical1D()
     concentration = system_spec.forms[0].solubility(60)
-    state = system_spec.make_empty_state(concentration=concentration, temperature=25)
+    state = system_spec.make_state(concentration=concentration, temperature=25)
 
     solver = MCSolver(system_spec, options)
-    input_ = ConstTemperatureInput(25.)
+    input_ = ConstantTemperatureInput(25.)
     state_output = solver.compute(state, 3600, input_)
 
 
@@ -26,10 +24,10 @@ def test_polymorphic():
 
     system_spec = HypotheticalPolymorphic1D()
     concentration = system_spec.forms[0].solubility(60)
-    state = system_spec.make_empty_state(concentration=concentration, temperature=25)
+    state = system_spec.make_state(concentration=concentration, temperature=25)
 
     solver = MCSolver(system_spec, options)
-    input_ = ConstTemperatureInput(25.)
+    input_ = ConstantTemperatureInput(25.)
     state_output = solver.compute(state, 3600, input_)
 
     for state in state_output:
@@ -44,14 +42,14 @@ def test_equal_growth_2d_should_match_1d():
     system_spec_1d = Hypothetical1D()
     concentration = system_spec_2d.forms[0].solubility(60)
 
-    state = system_spec_2d.make_empty_state(concentration=concentration, temperature=25)
+    state = system_spec_2d.make_state(concentration=concentration, temperature=25)
     solver2d = MCSolver(system_spec_2d, options)
-    input_ = ConstTemperatureInput(25.)
+    input_ = ConstantTemperatureInput(25.)
     state_output_2d = solver2d.compute(state, 3600, input_)
 
-    state = system_spec_1d.make_empty_state(concentration=concentration, temperature=25)
+    state = system_spec_1d.make_state(concentration=concentration, temperature=25)
     solver1d = MCSolver(system_spec_1d, options)
-    input_ = ConstTemperatureInput(25.)
+    input_ = ConstantTemperatureInput(25.)
     state_output_1d = solver1d.compute(state, 3600, input_)
 
     assert np.isclose(state_output_1d[-1].concentration, state_output_2d[-1].concentration)
@@ -63,14 +61,14 @@ def test_equal_growth_2d_polymorph_match_1d_polymorph():
     system_spec_1d = HypotheticalPolymorphic1D()
     concentration = system_spec_2d.forms[0].solubility(60)
 
-    state = system_spec_2d.make_empty_state(concentration=concentration, temperature=25)
+    state = system_spec_2d.make_state(concentration=concentration, temperature=25)
     solver2d = MCSolver(system_spec_2d, options)
-    input_ = ConstTemperatureInput(25.)
+    input_ = ConstantTemperatureInput(25.)
     state_output_2d = solver2d.compute(state, 3600, input_)
 
-    state = system_spec_1d.make_empty_state(concentration=concentration, temperature=25)
+    state = system_spec_1d.make_state(concentration=concentration, temperature=25)
     solver1d = MCSolver(system_spec_1d, options)
-    input_ = ConstTemperatureInput(25.)
+    input_ = ConstantTemperatureInput(25.)
     state_output_1d = solver1d.compute(state, 3600, input_)
 
     assert np.isclose(state_output_1d[-1].concentration, state_output_2d[-1].concentration)
@@ -80,10 +78,10 @@ def test_continuous():
     options = MCSolverOptions(attach_extra=True, profiling=True, output_spec=OutputLastSpec())
     system_spec = Hypothetical1D()
     concentration = system_spec.forms[0].solubility(60)
-    state = system_spec.make_empty_state(concentration=concentration, temperature=25)
+    state = system_spec.make_state(concentration=concentration, temperature=25)
     solver = MCSolver(system_spec, options)
 
-    inlet_state = system_spec.make_empty_state(state_type=InletState, concentration=concentration, rt=600)
+    inlet_state = system_spec.make_state(state_type=InletState, concentration=concentration, rt=600)
     input_ = ContinuousInput(inlet_state)
     output = solver.compute(state, 3600, input_=input_)
     assert True

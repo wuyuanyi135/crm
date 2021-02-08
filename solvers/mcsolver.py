@@ -1,11 +1,13 @@
 from dataclasses import dataclass, field
-from typing import Type, Literal
+from typing import Type, Literal, Optional
 
 import numpy as np
 
 from crm.base.solver import Solver, SolverOptions, SolverMeta
 from crm.base.state import State
 from crm.base.system_spec import SystemSpec
+from crm.utils.compress import Compressor
+from crm.utils.csd import edges_to_center_grid
 
 
 @dataclass
@@ -27,6 +29,8 @@ class MCSolverOptions(SolverOptions):
     time_step: float = 1.0
     nuclei_sizes: np.ndarray = field(default_factory=lambda: np.array([0]))
     time_step_mode: Literal["fixed"] = "fixed"
+
+    compressor: Optional[Compressor] = None
 
 
 class MCSolver(Solver):
@@ -64,6 +68,16 @@ class MCSolver(Solver):
         positive = np.all(n[:, :-1] >= 0, axis=1)
         n = n[positive, :]
         return n
+
+    def pre_update_n(self, state, **kwargs):
+        compressor = self.options.compressor
+        if compressor is not None:
+            self.make_profiling(kwargs["profiling"], "compress")
+            compressor.compress(state)
+            self.make_profiling(kwargs["profiling"], "compress")
+
+    def post_solver_step(self, state: State, **kwargs):
+        pass
 
     def get_time_step(self, state: State, growth_or_dissolution: np.ndarray, nucleation_rates: np.ndarray,
                       end_time: float):

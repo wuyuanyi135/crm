@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Union, TYPE_CHECKING
 
 import numpy as np
-from scipy.stats import norm
 
 if TYPE_CHECKING:
     from crm.base.system_spec import SystemSpec
@@ -42,6 +41,12 @@ class InletState(State):
     """
     rt: float = 1
 
+    @staticmethod
+    def from_state(state: State, rt: float) -> InletState:
+        # Note this state is not copied! the invoker should take care of the reference and copy to the state.
+        ret = InletState(rt=rt, **state.__dict__)
+        return ret
+
     def __add__(self, other):
         return self.merge_with(other)
 
@@ -71,17 +76,3 @@ class InletState(State):
         return state
 
 
-def sample_n_from_distribution(grid: np.ndarray, count: np.ndarray):
-    # TODO: multidimensional support
-    n = np.vstack([grid, count]).T
-    return n
-
-
-def create_normal_distribution_n(loc, scale, count_density=1, grid_count=50, sigma=2, grid=None, grid_fcn=np.linspace):
-    if grid is None:
-        grid_low = np.clip(loc - scale * sigma, 0, np.inf)
-        grid_high = loc + scale * sigma
-        grid = grid_fcn(grid_low, grid_high, grid_count)
-
-    val = norm.pdf(grid, loc=loc, scale=scale) * count_density
-    return sample_n_from_distribution(grid, val)

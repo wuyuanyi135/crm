@@ -1,10 +1,9 @@
 import pytest
 
-from crm.mcsolver import MCSolverOptions
 from crm.presets.hypothetical import Hypothetical2D, HypotheticalPolymorphicEqualGrowth2D
 from tests.get_data import get_sample_data, get_sample_data_polymorphic
 from crm.utils.pandas import StateDataFrame
-from crm.utils.csd_grid import edges_to_center_grid
+from crm.utils.csd import edges_to_center_grid
 import pandas as pd
 import numpy as np
 
@@ -96,3 +95,10 @@ class TestStateDataFrame:
         for csd_each_time in csd.itertuples(False):
             for csd_each_form in csd_each_time:
                 assert csd_each_form.shape[0] == len(grids)
+
+    def test_n_rows(self, sample_data):
+        sdf = StateDataFrame(sample_data)
+        n_rows = sdf.n_rows
+        assert_column_names_match_spec(n_rows, sample_data[0].system_spec)
+
+        assert n_rows.iloc[-1, 0] == sdf.n.iloc[-1, 0].shape[0]

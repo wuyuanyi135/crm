@@ -2,9 +2,10 @@ import numpy as np
 
 from crm.base.input import Input
 from crm.base.output_spec import OutputLastSpec
-from crm.base.state import State, create_normal_distribution_n
+from crm.base.state import State
+from crm.utils.csd import create_normal_distribution_n
 from crm.base.system_spec import SystemSpec, FormSpec
-from crm.mcsolver import MCSolver, MCSolverOptions
+from solvers.mcsolver import MCSolver, MCSolverOptions
 from crm.utils.pandas import StateDataFrame
 
 
@@ -64,8 +65,8 @@ def test_pure_growth_and_dissolve():
     options = MCSolverOptions(output_spec)
     solver = MCSolver(system, options)
 
-    init_n = create_normal_distribution_n(30e-6, 10e-6, count_density=1e6)
-    initial_state = system.make_empty_state(concentration=1, temperature=0, n=[init_n])
+    init_n = create_normal_distribution_n([30e-6], [10e-6], count_density=1e6)
+    initial_state = system.make_state(concentration=1, temperature=0, n=[init_n])
 
     solve_time = 60
 
@@ -101,7 +102,7 @@ def test_growth_and_nucleation():
     options = MCSolverOptions(output_spec)
     solver = MCSolver(system, options)
 
-    initial_state = system.make_empty_state(concentration=1, temperature=0)
+    initial_state = system.make_state(concentration=1, temperature=0)
 
     solve_time = 60
 

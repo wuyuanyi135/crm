@@ -5,7 +5,6 @@ import numpy as np
 
 from crm.base.state import State
 
-
 class FormSpec:
     name: str = "form"
 
@@ -75,7 +74,49 @@ class FormSpec:
         return ret
 
     def particle_volume(self, n: np.ndarray):
+        """
+        particle volume
+        :param total_volume: return the total particle volume of each size or the per-particle volume
+        :param n:
+        :return:
+        """
         return np.prod(n[:, :-1] ** self.volume_fraction_powers, axis=1) * self.shape_factor * n[:, -1]
+
+
+    def volume_average_size(self, n: np.ndarray):
+        """
+        Compute the volume average size that ensures the volume balance. Conventionally, only first dimension is
+        adjusted. The remaining dimensions can be fixed with arbitrary method (e.g., mean size).
+        This function is being used in row compression. The partition algorithm should ensure the n to be close to each
+        other, so the aggregation of the non-first dimension is valid.
+
+        :param n: (k x N) array. Standard n.
+        :return: (1 x N) array. The count will be balanced.
+        """
+        if n.shape[0] == 0:
+            return np.zeros((1, n.shape[1]))
+
+        count = n[:, -1].sum()
+        particle_average_volume = self.volume_fraction(n) / count / self.shape_factor
+
+        if self.volume_fraction_powers.size == 1:
+            # one dimensional
+            first_dim_size = particle_average_volume ** (1 / self.volume_fraction_powers[0])
+            return np.hstack([first_dim_size, count]).reshape((1, 2))
+        else:
+            # multi-dimensional N
+            non_first_dim_mean_sizes = n[:, 1:-1].mean(axis=0)
+
+            non_first_dim_prod = np.prod(non_first_dim_mean_sizes ** self.volume_fraction_powers[1:])
+
+            # exclude the effect of the non first dimensions. The modified particle_average_volume can be used to
+            # calculate the first dimension by reciprocal power of the first dimension
+            particle_average_volume = particle_average_volume / non_first_dim_prod
+
+            first_dim_size = particle_average_volume ** (1 / self.volume_fraction_powers[0])
+
+            ret = np.hstack([first_dim_size, non_first_dim_mean_sizes, count])
+            return ret.reshape((1, -1))
 
 
 class ParametricFormSpec(FormSpec):
@@ -178,14 +219,17 @@ class SystemSpec:
     def supersaturation(solubility: float, concentration: float):
         return (concentration - solubility) / solubility
 
-    def make_empty_state(self, state_type=State, **kwargs) -> State:
+    def make_state(self, state_type=State, **kwargs) -> State:
         """
         Make a state with correct number of n
         :return:
         """
+
         state = state_type(system_spec=self, **kwargs)
         if not "n" in kwargs:
             state.n = [np.array([]).reshape((0, f.dimensionality + 1)) for f in self.forms]  # dim + 1 for count column
+        else:
+            assert isinstance(kwargs["n"], list), "n must be a list"
         return state
 
     def get_form_names(self):

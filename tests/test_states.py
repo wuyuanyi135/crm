@@ -1,9 +1,9 @@
+import numpy as np
 import pytest
-from scipy.stats.distributions import norm
-from crm.base.state import sample_n_from_distribution, InletState
+
+from crm.base.state import InletState
 from crm.presets.hypothetical import Hypothetical1D
 from tests.get_data import get_sample_data
-import numpy as np
 
 
 def test_system_spec_shared():
@@ -20,7 +20,7 @@ def test_system_spec_shared():
 
 def test_copy_independent():
     spec = Hypothetical1D()
-    state = spec.make_empty_state()
+    state = spec.make_state()
     state_copy = state.copy()
 
     state.temperature += 100
@@ -33,18 +33,10 @@ def test_copy_independent():
     assert len(state.n) != len(state_copy.n)
 
 
-def test_sample_n_from_distribution():
-    grid = np.linspace(0, 200e-6, 100)
-    count = norm.pdf(grid, scale=10, loc=50)
-    n = sample_n_from_distribution(grid, count)
-
-    print(n)
-
-
 def test_merge_inlet_states():
     system_spec = Hypothetical1D()
-    state1 = system_spec.make_empty_state(state_type=InletState, concentration=1, temperature=25, rt=1)
-    state2 = system_spec.make_empty_state(state_type=InletState, concentration=1, temperature=25, rt=0.5)
+    state1 = system_spec.make_state(state_type=InletState, concentration=1, temperature=25, rt=1)
+    state2 = system_spec.make_state(state_type=InletState, concentration=1, temperature=25, rt=0.5)
     merged = state1 + state2
     assert np.isclose(merged.temperature, state1.temperature)
     assert np.isclose(merged.temperature, state2.temperature)
@@ -54,8 +46,8 @@ def test_merge_inlet_states():
 
     assert np.isclose(merged.rt, 1 / 3)
 
-    state3 = system_spec.make_empty_state(state_type=InletState, concentration=2, temperature=15, rt=0.5,
-                                          n=[np.array([[1e-6, 1e9], [2e-6, 1e8]])])
+    state3 = system_spec.make_state(state_type=InletState, concentration=2, temperature=15, rt=0.5,
+                                    n=[np.array([[1e-6, 1e9], [2e-6, 1e8]])])
     merged = state1 + state3
     assert np.isclose(merged.rt, 1 / 3)
     assert np.isclose(merged.temperature, 18.33333333)
