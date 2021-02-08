@@ -15,7 +15,8 @@ class Compressor:
     Since the volume average size has been implemented in the system spec, this class's job is to determine how to
     partition the big table so that each partition will be representative and effective in terms of table reduction.
     """
-    def compress(self, state: State):
+
+    def compress(self, state: State, inplace=False) -> State:
         pass
 
 
@@ -25,8 +26,11 @@ class BinningCompressor(Compressor):
         self.minimum_row = minimum_row
         self.grid_interval = grid_interval
 
-    def compress(self, state: State):
+    def compress(self, state: State, inplace=False) -> State:
         # compute the sample grid
+        if not inplace:
+            state = state.copy()
+
         for i, (n, form) in enumerate(zip(state.n, state.system_spec.forms)):
             if n.size <= self.minimum_row:
                 continue
@@ -48,3 +52,4 @@ class BinningCompressor(Compressor):
                 equivalent_row = form.volume_average_size(p)
                 equivalent_rows.append(equivalent_row)
             state.n[i] = np.vstack(equivalent_rows)
+        return state

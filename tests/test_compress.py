@@ -7,7 +7,7 @@ from crm.utils.pandas import StateDataFrame
 
 
 @pytest.mark.parametrize("system_spec_class", [Hypothetical1D, Hypothetical2D])
-def test_compress(system_spec_class, printer):
+def test_compress(system_spec_class, printer, benchmark):
     interval = 1e-6
     compressor = BinningCompressor(grid_interval=interval)
 
@@ -24,13 +24,14 @@ def test_compress(system_spec_class, printer):
     state = system_spec.make_state(
         n=[create_normal_distribution_n([100e-6] * dimensionality, [10e-6] * dimensionality, grid_count=200,
                                         count_density=1e8)])
-    state_copy = state.copy()
-    compressor.compress(state_copy)
+    new_state = benchmark(compressor.compress, state, inplace=False)
 
-    printer(f"Compressed n from {state.n[0].shape[0]} rows to {state_copy.n[0].shape[0]}")
+    assert id(new_state) != id(state), "when inplace=False, the state must be copied"
+
+    printer(f"Compressed n from {state.n[0].shape[0]} rows to {new_state.n[0].shape[0]}")
 
     sdf1 = StateDataFrame([state])
-    sdf2 = StateDataFrame([state_copy])
+    sdf2 = StateDataFrame([new_state])
 
     assert np.allclose(sdf1.volume_fraction, sdf2.volume_fraction)
     assert np.allclose(sdf1.counts, sdf2.counts)

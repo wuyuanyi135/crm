@@ -73,7 +73,7 @@ class MCSolver(Solver):
         compressor = self.options.compressor
         if compressor is not None:
             self.make_profiling(kwargs["profiling"], "compress")
-            compressor.compress(state)
+            compressor.compress(state, inplace=True)
             self.make_profiling(kwargs["profiling"], "compress")
 
     def post_solver_step(self, state: State, **kwargs):

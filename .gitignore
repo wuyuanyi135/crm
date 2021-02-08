@@ -1,3 +1,5 @@
 .idea
 test_report
 .pytest_cache
+.benchmarks
+.test_report
