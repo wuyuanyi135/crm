@@ -2,7 +2,7 @@ from numba import jit
 import numpy as np
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def particle_volume_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, shape_factor: float):
     out = np.ones((n.shape[0],))
     for i in range(n.shape[1] - 1):
@@ -10,12 +10,12 @@ def particle_volume_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, shape
     return out * shape_factor * n[:, -1]
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def volume_fraction_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, shape_factor: float):
     return particle_volume_jit(n, volume_fraction_powers, shape_factor).sum(axis=0)
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def volume_average_size_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, shape_factor: float):
     nrows = n.shape[0]
     ncols = n.shape[1]

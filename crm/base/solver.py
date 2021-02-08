@@ -63,13 +63,12 @@ class Solver:
         """
         return State
 
-    def get_time_step(self, state: State, growth_or_dissolution: np.ndarray, nucleation_rates: np.ndarray,
-                      end_time: float):
+    def get_time_step(self, state: State):
         raise NotImplementedError()
 
-    def post_time_step(self, time_steps: np.ndarray):
+    def post_time_step(self, time_step: float):
         options = self.options
-        timestep = time_steps.min() * options.time_step_scale
+        timestep = time_step * options.time_step_scale
         timestep = options.max_time_step if timestep > options.max_time_step else timestep
         return timestep
 
@@ -191,10 +190,32 @@ class Solver:
             # apply input
             state = input_.transform(state)
 
-            # the kinetics of each forms first
+            # Determine time step with the current state. If the kinetics is required to determine the time step, they
+            # will be computed with the system spec bound to the state.
+            # This change will potentially harm the performance of batch crystallization because the kinetics may be
+            # computed repetitively, but when the state-independent time step is used, or when the system is continuous
+            # (the kinetics need to be recalculated again anyway), this might be cleaner
+            time_step = self.get_time_step(state)
+
+            # apply scaling, capping, or custom functions to the time step
+            time_step = self.post_time_step(time_step)
+            if state.time + time_step > end_time:
+                time_step = end_time - state.time
+
+            # if the input contains continuous inlet, update it before the kinetic computation.
+            inlet_spec = input_.inlet(state)
+            if inlet_spec is not None:
+                state = self.update_with_inlet(state, inlet_spec, time_step)
+
+                if options.apply_non_continuous_input_twice:
+                    state = input_.transform(state)
+
+                # re calculate vfs since the CSD may have been modified by the IO flow.
+                vfs = np.array([f.volume_fraction(n) for f, n in zip(forms, state.n)])
+
+            # The kinetics of each forms
             sols = []
             sses = []
-            time_steps = []
             nucleation_rate_list = []
             gds = []
             for i, (f, n) in enumerate(zip(forms, state.n)):
@@ -208,36 +229,18 @@ class Solver:
                 elif ss > solubility_break_point:
                     nucleation_rates = f.nucleation_rate(state.temperature, ss, vfs[i])
                     gd = f.growth_rate(state.temperature, ss, n)
-                    time_step = self.get_time_step(state, gd, nucleation_rates, end_time)
+                    time_step = self.get_time_step(state)
                 else:
                     nucleation_rates = np.array((0., 0.))
                     gd = f.dissolution_rate(state.temperature, ss, n)
-                    time_step = self.get_time_step(state, gd, nucleation_rates, end_time)
+                    time_step = self.get_time_step(state)
                 sols.append(sol)
                 sses.append(ss)
-                time_steps.append(time_step)
                 nucleation_rate_list.append(nucleation_rates)
                 gds.append(gd)
                 self.make_profiling(profiling, f"kinetics_form_{f.name}")
-            sols = np.array(sols)
+
             sses = np.array(sses)
-            time_steps = np.array(time_steps)
-
-            # use the smaller step size
-            time_step = self.post_time_step(time_steps)
-            if state.time + time_step > end_time:
-                time_step = end_time - state.time
-
-            # if the input contains continuous inlet
-            inlet_spec = input_.inlet(state)
-            if inlet_spec is not None:
-                state = self.update_with_inlet(state, inlet_spec, time_step)
-
-                if options.apply_non_continuous_input_twice:
-                    state = input_.transform(state)
-
-                # re calculate vfs since the CSD may have been modified by the IO flow.
-                vfs = np.array([f.volume_fraction(n) for f, n in zip(forms, state.n)])
 
             self.pre_update_n(state, profiling=profiling)
             # update n
@@ -266,5 +269,3 @@ class Solver:
             self.make_profiling(profiling, "ram")
 
         return output_spec.get_outputs()
-
-

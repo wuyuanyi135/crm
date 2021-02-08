@@ -79,8 +79,7 @@ class MCSolver(Solver):
     def post_solver_step(self, state: State, **kwargs):
         pass
 
-    def get_time_step(self, state: State, growth_or_dissolution: np.ndarray, nucleation_rates: np.ndarray,
-                      end_time: float):
+    def get_time_step(self, state: State):
         if self.options.time_step_mode == "fixed":
             return self.options.time_step
         else:
