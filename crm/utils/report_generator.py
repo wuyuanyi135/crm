@@ -16,7 +16,7 @@ from rx import scheduler
 from crm.base.solver import SolverMeta
 from crm.base.state import State
 from crm.base.system_spec import SystemSpec
-from crm.utils.csd_grid import edges_to_center_grid
+from crm.utils.csd import edges_to_center_grid
 from crm.utils.pandas import StateDataFrame
 
 

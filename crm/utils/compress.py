@@ -20,7 +20,7 @@ class Compressor:
 
 
 class BinningCompressor(Compressor):
-    def __init__(self, grid_interval=5e-7, minimum_row=1):
+    def __init__(self, grid_interval=1e-6, minimum_row=1):
         super().__init__()
         self.minimum_row = minimum_row
         self.grid_interval = grid_interval

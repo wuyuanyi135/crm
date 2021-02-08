@@ -66,5 +66,5 @@ def test_volume_average_size(system_spec_class):
 
     assert sz.shape[0] == 1
     assert sz.shape[1] == dimensionality + 1
-    assert sz[:, -1] == n[:, -1].sum()
+    assert np.allclose(sz[:, -1], n[:, -1].sum())
     assert np.allclose(system_spec.forms[0].volume_fraction(n), system_spec.forms[0].volume_fraction(sz))

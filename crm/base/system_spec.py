@@ -4,19 +4,29 @@ from typing import List, TypeVar
 import numpy as np
 
 from crm.base.state import State
+from crm.utils.jit import volume_fraction_jit, particle_volume_jit, volume_average_size_jit
+
 
 class FormSpec:
     name: str = "form"
 
     density: float = 0
 
-    shape_factor = 1
-    volume_fraction_powers = np.array([3.])
+    shape_factor: float = 1
+    volume_fraction_powers: np.ndarray = np.array([3.])
 
-    dimensionality = 1
+    dimensionality: int = 1
+
+    jit: bool = True
 
     def __init__(self, name: str):
         self.name = name
+
+        if self.jit:
+            self.particle_volume = lambda n: particle_volume_jit(n, self.volume_fraction_powers, self.shape_factor)
+            self.volume_fraction = lambda n: volume_fraction_jit(n, self.volume_fraction_powers, self.shape_factor)
+            self.volume_average_size = lambda n: volume_average_size_jit(n, self.volume_fraction_powers,
+                                                                         self.shape_factor)
 
     def solubility(self, t: float) -> float:
         """
@@ -81,7 +91,6 @@ class FormSpec:
         :return:
         """
         return np.prod(n[:, :-1] ** self.volume_fraction_powers, axis=1) * self.shape_factor * n[:, -1]
-
 
     def volume_average_size(self, n: np.ndarray):
         """
