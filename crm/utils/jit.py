@@ -1,4 +1,6 @@
-from numba import jit
+from typing import List
+
+from numba import jit, prange
 import numpy as np
 
 
@@ -21,7 +23,7 @@ def volume_average_size_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, s
     ncols = n.shape[1]
     if nrows == 0:
         return np.zeros((1, n.shape[1]))
-    ret = np.empty((ncols, ))
+    ret = np.empty((ncols,))
 
     count = n[:, -1].sum()
     particle_average_volume = volume_fraction_jit(n, volume_fraction_powers, shape_factor) / count / shape_factor
@@ -48,3 +50,20 @@ def volume_average_size_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, s
         ret[-1] = count
 
         return ret.reshape((1, -1))
+
+
+@jit(nopython=True, cache=True, parallel=True)
+def partition_equivalent_rows_jit(ns, volume_fraction_powers: np.ndarray, shape_factor: float) -> np.ndarray:
+    ncols = ns[0].shape[1]
+    nrows = len(ns)
+    ret = np.zeros((nrows, ncols))
+
+    for i in prange(nrows):
+        p = ns[i]
+        if p.size == 0:
+            continue
+        equivalent_row = volume_average_size_jit(p, volume_fraction_powers, shape_factor)
+        ret[i, :] = equivalent_row[0, :]
+
+    ret = ret[ret[:, -1] != 0, :]
+    return ret

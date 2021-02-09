@@ -1,11 +1,17 @@
 """
 Collection of row reduction algorithms
 """
+from typing import List
+
 import numpy as np
 from scipy.stats import binned_statistic_dd
 import numpy_indexed as npi
 
 from crm.base.state import State
+from crm.base.system_spec import FormSpec
+from crm.utils.jit import partition_equivalent_rows_jit
+
+import numba.typed
 
 
 class Compressor:
@@ -45,11 +51,12 @@ class BinningCompressor(Compressor):
 
             # use the index to partition
             partitions = npi.group_by(assignments).split(n)
-            equivalent_rows = []
-            for p in partitions:
-                if p.size == 0:
-                    continue
-                equivalent_row = form.volume_average_size(p)
-                equivalent_rows.append(equivalent_row)
-            state.n[i] = np.vstack(equivalent_rows)
+            equivalent_rows = self.partitions_to_equivalent_rows(partitions, form)
+            state.n[i] = equivalent_rows
         return state
+
+    def partitions_to_equivalent_rows(self, partitions: List[np.ndarray], form: FormSpec) -> np.ndarray:
+        # using the jitted code
+        partitions = numba.typed.List(partitions)
+        eq_rows = partition_equivalent_rows_jit(partitions, form.volume_fraction_powers, form.shape_factor)
+        return eq_rows
