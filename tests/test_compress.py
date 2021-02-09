@@ -7,9 +7,29 @@ from crm.utils.pandas import StateDataFrame
 
 
 @pytest.mark.parametrize("system_spec_class", [Hypothetical1D, Hypothetical2D])
-def test_compress(system_spec_class, printer, benchmark):
+def test_jit_consistency(system_spec_class):
     interval = 1e-6
-    compressor = BinningCompressor(grid_interval=interval)
+    compressor_nojit = BinningCompressor(grid_interval=interval, jit=False)
+    compressor_jit = BinningCompressor(grid_interval=interval, jit=True)
+
+    system_spec = system_spec_class()
+
+    # compress nothing
+    state = system_spec.make_state()
+
+    result_nojit = compressor_nojit.compress(state, inplace=False)
+    result_jit = compressor_jit.compress(state, inplace=False)
+
+    assert np.allclose(result_nojit.n[0], result_jit.n[0])
+
+
+@pytest.mark.parametrize("jit", [True, False])
+@pytest.mark.parametrize("system_spec_class", [Hypothetical1D, Hypothetical2D])
+def test_compress(system_spec_class, jit, printer, benchmark):
+    if jit:
+        pytest.skip("JIT implementation is suboptimal. The list append thread safety prevent a more efficient impl")
+    interval = 1e-6
+    compressor = BinningCompressor(grid_interval=interval, jit=jit)
 
     system_spec = system_spec_class()
 

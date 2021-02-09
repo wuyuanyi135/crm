@@ -27,10 +27,11 @@ class Compressor:
 
 
 class BinningCompressor(Compressor):
-    def __init__(self, grid_interval=1e-6, minimum_row=1):
+    def __init__(self, grid_interval=1e-6, minimum_row=1, jit=False):
         super().__init__()
         self.minimum_row = minimum_row
         self.grid_interval = grid_interval
+        self.jit = jit
 
     def compress(self, state: State, inplace=False) -> State:
         # compute the sample grid
@@ -56,7 +57,15 @@ class BinningCompressor(Compressor):
         return state
 
     def partitions_to_equivalent_rows(self, partitions: List[np.ndarray], form: FormSpec) -> np.ndarray:
-        # using the jitted code
-        partitions = numba.typed.List(partitions)
-        eq_rows = partition_equivalent_rows_jit(partitions, form.volume_fraction_powers, form.shape_factor)
-        return eq_rows
+        if self.jit:
+            partitions = numba.typed.List(partitions)
+            eq_rows = partition_equivalent_rows_jit(partitions, form.volume_fraction_powers, form.shape_factor)
+            return np.vstack(eq_rows)
+        else:
+            rows = []
+            for p in partitions:
+                if p.size == 0:
+                    continue
+                rows.append(form.volume_average_size(p))
+            eq_rows = np.vstack(rows)
+            return eq_rows
