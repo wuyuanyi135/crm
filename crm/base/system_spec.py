@@ -69,6 +69,24 @@ class FormSpec:
         """
         raise NotImplementedError()
 
+    def agglomeration(self, n: np.ndarray, state: State = None) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+        """
+        Agglomeration parameters.
+        :param state:
+        :return: (D, B) or None. D has the same rows as the n, indicating the count being removed from n. B has arbitrary
+        number of rows and same columns as D. The volume of B and D should equal.
+        """
+
+        return None
+
+    def breakage(self, n: np.ndarray, state: State = None) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+        """
+        Breakage parameters.
+        :param state:
+        :return: see agglomeration return
+        """
+        return None
+
     def volume_fraction(self, n: np.ndarray):
         """
         Compute the volume fraction (vol solid/vol liquid)
