@@ -18,14 +18,23 @@ def volume_fraction_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, shape
 
 
 @jit(nopython=True, cache=True)
-def volume_average_size_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, shape_factor: float):
+def volume_average_size_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, shape_factor: float,
+                            count: float = None):
+    """
+
+    :param n:
+    :param volume_fraction_powers:
+    :param shape_factor:
+    :param count: override count. For example, using count == 0.5*(n1 + n2) can be used for agglomeration
+    :return:
+    """
     nrows = n.shape[0]
     ncols = n.shape[1]
     if nrows == 0:
         return np.zeros((1, n.shape[1]))
     ret = np.empty((ncols,))
 
-    count = n[:, -1].sum()
+    count = count or n[:, -1].sum()
     particle_average_volume = volume_fraction_jit(n, volume_fraction_powers, shape_factor) / count / shape_factor
 
     if volume_fraction_powers.size == 1:
@@ -52,7 +61,7 @@ def volume_average_size_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, s
         return ret.reshape((1, -1))
 
 
-@jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def partition_equivalent_rows_jit(ns, volume_fraction_powers: np.ndarray, shape_factor: float) -> np.ndarray:
     ncols = ns[0].shape[1]
     nrows = len(ns)
@@ -67,3 +76,34 @@ def partition_equivalent_rows_jit(ns, volume_fraction_powers: np.ndarray, shape_
 
     ret = ret[ret[:, -1] != 0, :]
     return ret
+
+
+@jit(nopython=True, cache=True, fastmath=True)
+def polyval_jit(p, x):
+    y = np.zeros(x.shape, dtype=float)
+    for i, v in enumerate(p):
+        y *= x
+        y += v
+    return y
+
+
+def binary_agglomeration_daughter_table_jit(ns):
+    nrows = ns.shape[0]
+
+
+def binary_agglomeration_jit(ns, alpha: float, agglomeration_dim: int = 0):
+    """
+    Constant binary agglomeration
+    :param agglomeration_dim: dimension being agglomerated. The rest dimension will be left untouched
+    :param ns:
+    :param alpha_poly:
+    :return:
+    """
+    nrows = ns.shape[0]
+    D = np.zeros_like(ns)
+    count_col = ns[:, agglomeration_dim]
+    for row_self in range(nrows):
+        for row_others in range(row_self + 1, nrows):
+            reduced = alpha * count_col[row_self] * count_col[row_others]
+            D[row_self] -= reduced
+            D[row_others] -= reduced

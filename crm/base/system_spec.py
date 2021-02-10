@@ -1,5 +1,5 @@
 import functools
-from typing import List, TypeVar
+from typing import List, TypeVar, Tuple, Optional
 
 import numpy as np
 
