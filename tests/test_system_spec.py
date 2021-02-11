@@ -50,7 +50,7 @@ def test_volume_average_size(system_spec_class):
     # empty
     system_spec = system_spec_class()
     state = system_spec.make_state()
-    sz = system_spec.forms[0].volume_average_size(state.n[0])
+    sz = system_spec.forms[0].volume_average_size(state.n[0])[np.newaxis, :]
     dimensionality = system_spec.forms[0].dimensionality
     assert np.allclose(sz, [0] * (dimensionality + 1))
     assert sz.shape[0] == 1
@@ -62,7 +62,7 @@ def test_volume_average_size(system_spec_class):
     count = np.random.random((num_rows, 1)) * 1e6
     n = np.hstack([lengths, count])
 
-    sz = system_spec.forms[0].volume_average_size(n)
+    sz = system_spec.forms[0].volume_average_size(n)[np.newaxis, :]
 
     assert sz.shape[0] == 1
     assert sz.shape[1] == dimensionality + 1
