@@ -95,18 +95,23 @@ def partition_equivalent_rows_jit(ns, volume_fraction_powers: np.ndarray, shape_
 
 @jit(nopython=True, cache=True, nogil=True)
 def binary_agglomeration_jit(n, alpha: float, volume_fraction_powers: np.ndarray, shape_factor: float,
-                             combination_index_=None, combination_table_=None, compression=False):
+                             crystallizer_volume: float,
+                             combination_index_=None, combination_table_=None, compression_interval: float = 0.):
     """
     Constant binary agglomeration
     TODO: implement agglomeration along different dimension
+    :param compression_interval: if 0 not compress. otherwise compress with this interval.
+    :param combination_index_:
     :param ns:
     :param alpha_poly:
     :return: B, D. B is the same form as n. D is a vector of count change rate
     """
     nrows = n.shape[0]
     ncols = n.shape[1]
+
+    crystallizer_volume_square = crystallizer_volume ** 2
     if combination_index_ is None:
-        combination_index: tuple = np.triu_indices(nrows, 0)  # combination can self-intersect!
+        combination_index = np.triu_indices(nrows, 0)  # combination can self-intersect!
     else:
         combination_index = combination_index_
     # (n choose 2, 2, dim+1) second: two rows for combination
@@ -129,7 +134,7 @@ def binary_agglomeration_jit(n, alpha: float, volume_fraction_powers: np.ndarray
     for i, row_idx in enumerate(zip(*combination_index)):
         agglomeration_parent_rows = combination_table[i]
 
-        reduced = 1 / 2 * alpha * np.prod(agglomeration_parent_rows[:, -1])
+        reduced = 1 / 2 * alpha * np.prod(agglomeration_parent_rows[:, -1]) * crystallizer_volume_square
 
         # this for loop should just run twice for binary agglomeration.
         for r in row_idx:
@@ -139,6 +144,8 @@ def binary_agglomeration_jit(n, alpha: float, volume_fraction_powers: np.ndarray
                                           per_particle=True)
         B[i, -1] = reduced
 
+    if compression_interval > 0:
+        B = compress_jit(B, volume_fraction_powers, shape_factor, compression_interval)
     return B, D
 
 
@@ -162,6 +169,7 @@ def binary_agglomeration_parallel_wrapper(n, alpha: float, volume_fraction_power
             combination_index[1][i: i + per_cpu_rows]
         ))
         sub_table.append(combination_table[i: i + per_cpu_rows, :])
+
 
 @jit(nopython=True, cache=True)
 def compress_jit(n, volume_fraction_powers: np.ndarray, shape_factor: float, interval: float = 1e-6):

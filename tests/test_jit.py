@@ -32,51 +32,61 @@ def test_agglomeration_jit_1d():
     form = system_spec.forms[0]
 
     n = np.array([(1e-6, 10), (2e-6, 10)])
+    crystallizer_volume = 150e-6  # mL
+    alpha = 4.86e12
 
-    B, D = binary_agglomeration_jit(n, 1, form.volume_fraction_powers, form.shape_factor)
+    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor, crystallizer_volume)
     assert_volume_equal_after_agglomeration(n, B, D, form)
 
     n = np.array([(1e-6, 10), (2e-6, 10), (6e-6, 52)])
 
-    B, D = binary_agglomeration_jit(n, 1, form.volume_fraction_powers, form.shape_factor)
+    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor, crystallizer_volume)
     assert_volume_equal_after_agglomeration(n, B, D, form)
 
     n = np.array([(1e-6, 10), (2e-6, 10), (6e-6, 52), (8e-6, 42)])
 
-    B, D = binary_agglomeration_jit(n, 1, form.volume_fraction_powers, form.shape_factor)
+    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor, crystallizer_volume)
     assert_volume_equal_after_agglomeration(n, B, D, form)
 
 
 def test_agglomeration_jit_2d():
     system_spec = Hypothetical2D()
     form = system_spec.forms[0]
+    crystallizer_volume = 150e-6  # mL
+    alpha = 4.86e12
 
     n = np.array([(1e-6, 1e-6, 10), (2e-6, 1e-6, 10), (6e-6, 1e-6, 52), (8e-6, 4e-6, 42)])
 
-    B, D = binary_agglomeration_jit(n, 1, form.volume_fraction_powers, form.shape_factor)
+    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor, crystallizer_volume)
     assert_volume_equal_after_agglomeration(n, B, D, form)
 
 
 @pytest.mark.parametrize("system_spec_class", [Hypothetical1D, Hypothetical2D])
-@pytest.mark.parametrize("nrows", [100, 300, 1000])
-def test_benchmark_agglomeration(nrows, system_spec_class, benchmark):
+@pytest.mark.parametrize("nrows", [100, 1000])
+@pytest.mark.parametrize("compress", [True, False], ids=["compress", "no_compress"])
+def test_benchmark_agglomeration(nrows, system_spec_class, compress, benchmark, printer):
     system_spec = system_spec_class()
     form = system_spec.forms[0]
     dim = form.dimensionality
+    crystallizer_volume = 150e-6  # mL
+    alpha = 4.86e12
 
     sizes = np.random.random((nrows, dim)) * nrows * 1e-6
     cnts = np.random.random((nrows, 1)) * 1e8
     n = np.hstack((sizes, cnts))
 
-    B, D = benchmark(binary_agglomeration_jit, n, 1, form.volume_fraction_powers, form.shape_factor)
+    compression_interval = 1e-6 if compress else 0.
+
+    B, D = benchmark(binary_agglomeration_jit, n, alpha, form.volume_fraction_powers, form.shape_factor,
+                     crystallizer_volume, compression_interval=compression_interval)
     assert_volume_equal_after_agglomeration(n, B, D, form)
+    printer(f"n rows in B: {B.shape[0]}")
 
 
-@pytest.mark.parametrize("nrows", [100, 1000, 10000, 100000, 1000000])
+@pytest.mark.parametrize("nrows", [100, 1000, 10000, 100000])
 @pytest.mark.parametrize("ndim", [1, 2, 3])
-@pytest.mark.parametrize("scale", ["low", "high"])
+@pytest.mark.parametrize("scale", [25e-6, 100e-6], ids=["high", "low"])
 def test_compression_jit(nrows, ndim, scale, benchmark, printer):
-    scale = 25e-6 if scale == "low" else 100e-6
     scale_count = 1e8
     loc = scale * 2
     sizes = np.random.normal(loc=loc, scale=scale, size=(nrows, ndim))
