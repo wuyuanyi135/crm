@@ -74,12 +74,12 @@ def test_benchmark_agglomeration(nrows, system_spec_class, benchmark):
 
 @pytest.mark.parametrize("nrows", [100, 1000, 10000, 100000, 1000000])
 @pytest.mark.parametrize("ndim", [1, 2, 3])
-@pytest.mark.parametrize("scale", [25e-6, 500e-6])
+@pytest.mark.parametrize("scale", ["low", "high"])
 def test_compression_jit(nrows, ndim, scale, benchmark, printer):
-    scale_size = scale
+    scale = 25e-6 if scale == "low" else 100e-6
     scale_count = 1e8
     loc = scale * 2
-    sizes = np.random.normal(loc=loc, scale=scale_size, size=(nrows, ndim))
+    sizes = np.random.normal(loc=loc, scale=scale, size=(nrows, ndim))
     sizes = np.clip(sizes, loc - scale * 1.5, loc + scale * 1.5)
     count = np.random.random((nrows, 1)) * scale_count
     n = np.hstack((sizes, count))

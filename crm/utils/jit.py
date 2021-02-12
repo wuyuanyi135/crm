@@ -139,8 +139,6 @@ def binary_agglomeration_jit(n, alpha: float, volume_fraction_powers: np.ndarray
                                           per_particle=True)
         B[i, -1] = reduced
 
-    if compression:
-        partition_equivalent_rows_jit()
     return B, D
 
 
@@ -165,7 +163,7 @@ def binary_agglomeration_parallel_wrapper(n, alpha: float, volume_fraction_power
         ))
         sub_table.append(combination_table[i: i + per_cpu_rows, :])
 
-@jit(nopython=True, cache=True, nogil=True)
+@jit(nopython=True, cache=True)
 def compress_jit(n, volume_fraction_powers: np.ndarray, shape_factor: float, interval: float = 1e-6):
     """
     accelerated compression algorithm
