@@ -83,6 +83,42 @@ def test_benchmark_agglomeration(nrows, system_spec_class, compress, benchmark, 
     printer(f"n rows in B: {B.shape[0]}")
 
 
+def test_agglomeration_ignore_particles():
+    # TODO: another test in real solver to ensure no infinite agglomeration.
+    system_spec = Hypothetical1D()
+    form = system_spec.forms[0]
+
+    crystallizer_volume = 1
+    alpha = 4.86e12
+    minimum_count = 1000.
+
+    n = np.array([
+        (1e-6, 10),
+        (2e-6, 10),
+        (3e-6, 10),
+    ])
+
+    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor,
+                                    crystallizer_volume, minimum_count=minimum_count)
+
+    assert np.all(D == 0)
+    assert B.size == 0
+
+    n = np.array([
+        (1e-6, 10),
+        (2e-6, 10),
+        (3e-6, 2000),
+        (4e-6, 2000),
+        (5e-6, 2000),
+    ])
+    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor,
+                                    crystallizer_volume, minimum_count=minimum_count)
+    assert_volume_equal_after_agglomeration(n, B, D, form)
+
+    assert B.shape[0] == 3 * 2
+    assert D.size == n.shape[0]
+
+
 @pytest.mark.parametrize("nrows", [100, 1000, 10000, 100000])
 @pytest.mark.parametrize("ndim", [1, 2, 3])
 @pytest.mark.parametrize("scale", [25e-6, 100e-6], ids=["high", "low"])

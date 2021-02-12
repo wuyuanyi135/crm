@@ -94,37 +94,43 @@ def partition_equivalent_rows_jit(ns, volume_fraction_powers: np.ndarray, shape_
 
 
 @jit(nopython=True, cache=True, nogil=True)
-def binary_agglomeration_jit(n, alpha: float, volume_fraction_powers: np.ndarray, shape_factor: float,
-                             crystallizer_volume: float,
-                             combination_index_=None, combination_table_=None, compression_interval: float = 0.):
+def binary_agglomeration_jit(
+        n: np.ndarray,
+        alpha: float,
+        volume_fraction_powers: np.ndarray,
+        shape_factor: float,
+        crystallizer_volume: float,
+        compression_interval: float = 0.,
+        minimum_count: float = 1000.
+):
     """
     Constant binary agglomeration
     TODO: implement agglomeration along different dimension
+    :param minimum_count: when one of the involved class has lower than minimum_count particles, agglomeration is ignored.
     :param compression_interval: if 0 not compress. otherwise compress with this interval.
-    :param combination_index_:
-    :param ns:
-    :param alpha_poly:
+    :param n:
+    :param alpha:
     :return: B, D. B is the same form as n. D is a vector of count change rate
     """
+
+    # filter out the ignored particles
+    included_rows = n[:, -1] >= minimum_count
+    n_original = n
+    n = n[included_rows]
+
     nrows = n.shape[0]
     ncols = n.shape[1]
-
     crystallizer_volume_square = crystallizer_volume ** 2
-    if combination_index_ is None:
-        combination_index = np.triu_indices(nrows, 0)  # combination can self-intersect!
-    else:
-        combination_index = combination_index_
+    combination_index = np.triu_indices(nrows, 0)  # combination can self-intersect!
+
     # (n choose 2, 2, dim+1) second: two rows for combination
     # combination_table = n[combination_index, :].swapaxes(0, 1)
     # ND indexing is not supported in numba.
-    if combination_table_ is None:
-        combination_table: np.ndarray = np.empty((combination_index[0].shape[0], 2, ncols))
+    combination_table: np.ndarray = np.empty((combination_index[0].shape[0], 2, ncols))
 
-        for i, (self_row_id, other_row_id) in enumerate(zip(*combination_index)):
-            combination_table[i, 0, :] = n[self_row_id, :]
-            combination_table[i, 1, :] = n[other_row_id, :]
-    else:
-        combination_table = combination_table_
+    for i, (self_row_id, other_row_id) in enumerate(zip(*combination_index)):
+        combination_table[i, 0, :] = n[self_row_id, :]
+        combination_table[i, 1, :] = n[other_row_id, :]
 
     D = np.zeros((nrows,))
 
@@ -146,7 +152,12 @@ def binary_agglomeration_jit(n, alpha: float, volume_fraction_powers: np.ndarray
 
     if compression_interval > 0:
         B = compress_jit(B, volume_fraction_powers, shape_factor, compression_interval)
-    return B, D
+
+    # restore D to the same rows as original n
+    D_original = np.zeros((n_original.shape[0],))
+    D_original[included_rows] = D
+
+    return B, D_original
 
 
 def binary_agglomeration_parallel_wrapper(n, alpha: float, volume_fraction_powers: np.ndarray, shape_factor: float):
