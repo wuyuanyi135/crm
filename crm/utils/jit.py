@@ -28,14 +28,13 @@ def volume_fraction_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, shape
 
 
 @jit(nopython=True, cache=True)
-def volume_average_size_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, shape_factor: float,
-                            per_particle=False):
+def volume_average_size_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, shape_factor: float, mode: float = 0.):
     """
 
     :param n:
     :param volume_fraction_powers:
     :param shape_factor:
-    :param per_particle: ignore count, compute the size when all particles in n agglomerating into one particle
+    :param mode: internal use only. mode 0: normal, <0: agglomeration, >0: breakage, treated as split ratio.
     :return:
     """
     nrows = n.shape[0]
@@ -44,13 +43,15 @@ def volume_average_size_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, s
         return np.zeros((n.shape[1],))
     ret = np.empty((ncols,))
 
-    if per_particle:
-        count = 1
-        particle_volume = per_particle_volume_jit(n, volume_fraction_powers, shape_factor).sum()
-        particle_average_volume = particle_volume
-    else:
+    if mode == 0.:
         count = n[:, -1].sum()
         particle_average_volume = volume_fraction_jit(n, volume_fraction_powers, shape_factor) / count
+    elif mode < 0.:
+        count = 0  # doesn't care
+        particle_average_volume = per_particle_volume_jit(n, volume_fraction_powers, shape_factor).sum()
+    else:
+        count = 0  # doesn't care
+        particle_average_volume = mode * per_particle_volume_jit(n, volume_fraction_powers, shape_factor).sum()
 
     if volume_fraction_powers.size == 1:
         # one dimensional
@@ -140,14 +141,13 @@ def binary_agglomeration_jit(
     for i, row_idx in enumerate(zip(*combination_index)):
         agglomeration_parent_rows = combination_table[i]
 
-        reduced = 1 / 2 * alpha * np.prod(agglomeration_parent_rows[:, -1]) * crystallizer_volume_square
+        reduced = alpha * np.prod(agglomeration_parent_rows[:, -1]) * crystallizer_volume_square
 
         # this for loop should just run twice for binary agglomeration.
         for r in row_idx:
             D[r] += reduced
 
-        B[i, :] = volume_average_size_jit(agglomeration_parent_rows, volume_fraction_powers, shape_factor,
-                                          per_particle=True)
+        B[i, :] = volume_average_size_jit(agglomeration_parent_rows, volume_fraction_powers, shape_factor, mode=-1.)
         B[i, -1] = reduced
 
     if compression_interval > 0:
@@ -158,28 +158,6 @@ def binary_agglomeration_jit(
     D_original[included_rows] = D
 
     return B, D_original
-
-
-def binary_agglomeration_parallel_wrapper(n, alpha: float, volume_fraction_powers: np.ndarray, shape_factor: float):
-    import threading
-    import os
-    ncpu = os.cpu_count()
-
-    nrows = n.shape[0]
-    per_cpu_rows = nrows / ncpu
-
-    combination_index = np.triu_indices(nrows, 1)
-    combination_table = n[combination_index, :].swapaxes(0, 1)
-
-    # trunk index
-    sub_index = []
-    sub_table = []
-    for i in range(0, len(combination_index[0]), per_cpu_rows):
-        sub_index.append((
-            combination_index[0][i: i + per_cpu_rows],
-            combination_index[1][i: i + per_cpu_rows]
-        ))
-        sub_table.append(combination_table[i: i + per_cpu_rows, :])
 
 
 @jit(nopython=True, cache=True)
@@ -254,3 +232,65 @@ def compress_jit(n, volume_fraction_powers: np.ndarray, shape_factor: float, int
         # TODO: this step does not support adjust_dim
         ret = np.hstack((adjust_dim_size.reshape((-1, 1)), mean_non_adjust_dim_grid, count_grid.reshape((-1, 1))))
         return ret
+
+
+@jit(nopython=True, cache=True)
+def binary_breakage_jit(
+        n: np.ndarray,
+        kernels: np.ndarray,
+        volume_fraction_powers, shape_factor,
+        crystallizer_volume: float,
+        compression_interval: float = 0,
+        minimum_count: float = 1000
+):
+    """
+    :param n:
+    :param crystallizer_volume:
+    :param compression_interval:
+    :param minimum_count:
+    :param kernels: N x 2 array. N is the combinations. The two columns are split ratio and kernel value
+    :param volume_fraction_powers:
+    :param shape_factor:
+    :return:
+    """
+    # filter out the ignored particles
+    included_rows = n[:, -1] >= minimum_count
+    n_original = n
+    n = n[included_rows]
+
+    nrows = n.shape[0]
+    nkernels = kernels.shape[0]
+    ncols = n.shape[1]
+    crystallizer_volume_square = crystallizer_volume ** 2
+
+    D = np.zeros((nrows,))
+
+    # shape: (n * kernels * 2, dim + 1)
+    # when evenly break, the two rows will be same.
+    B = np.empty((nrows * nkernels * 2, ncols))
+
+    B_index = 0
+    for i, r in enumerate(n):
+        for _, kernel in enumerate(kernels):
+            split_ratio = kernel[0]
+            k = kernel[1]
+
+            reduced = k * r[-1] * crystallizer_volume_square
+
+            D[i] += reduced
+            row = np.expand_dims(r, 0)
+            B[B_index, :] = volume_average_size_jit(row, volume_fraction_powers, shape_factor, mode=split_ratio)
+            B[B_index, -1] = reduced
+            B_index += 1
+
+            B[B_index, :] = volume_average_size_jit(row, volume_fraction_powers, shape_factor, mode=1 - split_ratio)
+            B[B_index, -1] = reduced
+            B_index += 1
+
+    if compression_interval > 0:
+        B = compress_jit(B, volume_fraction_powers, shape_factor, compression_interval)
+
+    # restore D to the same rows as original n
+    D_original = np.zeros((n_original.shape[0],))
+    D_original[included_rows] = D
+    return B, D_original

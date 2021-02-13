@@ -2,7 +2,8 @@ import pytest
 import numpy as np
 
 from crm.base.system_spec import FormSpec
-from crm.utils.jit import volume_average_size_jit, binary_agglomeration_jit, compress_jit, volume_fraction_jit
+from crm.utils.jit import volume_average_size_jit, binary_agglomeration_jit, compress_jit, volume_fraction_jit, \
+    binary_breakage_jit
 from crm.presets.hypothetical import Hypothetical1D, Hypothetical2D
 
 
@@ -14,7 +15,7 @@ def test_volume_average_size_jit():
 
     n_unity = np.array([(1e-6, 1), (1e-6, 1)])
 
-    va_row = volume_average_size_jit(n_unity, form.volume_fraction_powers, form.shape_factor, 1)[np.newaxis, :]
+    va_row = volume_average_size_jit(n_unity, form.volume_fraction_powers, form.shape_factor, mode=-1)[np.newaxis, :]
     assert np.isclose(form.volume_fraction(va_row), form.volume_fraction(n_unity))
 
 
@@ -147,3 +148,54 @@ def test_compression_jit(nrows, ndim, scale, benchmark, printer):
     assert np.isclose(original_volume, result_volume)
 
     printer(f"compressed {nrows} to {result.shape[0]}")
+
+
+def test_breakage():
+    system_spec = Hypothetical1D()
+    form = system_spec.forms[0]
+
+    n = np.array([(1e-6, 10)])
+    crystallizer_volume = 150e-6  # mL
+    kernels = np.array([(0.5, 4.86e15)])
+    B, D = binary_breakage_jit(n, kernels, form.volume_fraction_powers, form.shape_factor, crystallizer_volume,
+                               minimum_count=0)
+    assert_volume_equal_after_agglomeration(n, B, D, form)
+
+    # test below minimum count
+    B, D = binary_breakage_jit(n, kernels, form.volume_fraction_powers, form.shape_factor, crystallizer_volume,
+                               minimum_count=1e8)
+    assert D.size == 1 and D[0] == 0.
+    assert B.size == 0
+
+
+KERNEL_55 = np.array([(0.5, 4.86e15)])
+KERNEL_37 = np.array([(0.3, 3e15)])
+KERNEL_19 = np.array([(0.1, 1e15)])
+KERNEL_LIST = [
+    KERNEL_55,
+    np.vstack((KERNEL_55, KERNEL_37)),
+    np.vstack((KERNEL_55, KERNEL_37, KERNEL_19)),
+]
+
+
+@pytest.mark.parametrize("kernels", KERNEL_LIST, ids=["kernel_1", "kernel_2", "kernel_3"])
+@pytest.mark.parametrize("system_spec_class", [Hypothetical1D, Hypothetical2D])
+@pytest.mark.parametrize("nrows", [100, 1000])
+@pytest.mark.parametrize("compress", [True, False], ids=["compress", "no_compress"])
+def test_benchmark_breakage(kernels, nrows, system_spec_class, compress, benchmark, printer):
+    system_spec = system_spec_class()
+    form = system_spec.forms[0]
+    dim = form.dimensionality
+    crystallizer_volume = 150e-6  # mL
+
+    sizes = np.random.normal(loc=100e-6, scale=20e-6, size=(nrows, dim))
+    sizes = np.clip(sizes, 1e-6, np.inf)
+    cnts = np.random.random((nrows, 1)) * 1e8
+    n = np.hstack((sizes, cnts))
+
+    compression_interval = 1e-6 if compress else 0.
+
+    B, D = benchmark(binary_breakage_jit, n, kernels, form.volume_fraction_powers, form.shape_factor,
+                     crystallizer_volume, compression_interval=compression_interval)
+    assert_volume_equal_after_agglomeration(n, B, D, form)
+    printer(f"n rows in B: {B.shape[0]}")
