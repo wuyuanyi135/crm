@@ -88,6 +88,9 @@ def test_agglomeration_multithread():
 @pytest.mark.parametrize("compress", [True, False], ids=["compress", "no_compress"])
 @pytest.mark.parametrize("mt", [True, False], ids=["mt", "st"])
 def test_benchmark_agglomeration(nrows, system_spec_class, compress, mt, benchmark):
+    if mt:
+        pytest.skip("Multithread agglomeration skip.")
+
     system_spec = system_spec_class()
     form = system_spec.forms[0]
     dim = form.dimensionality
