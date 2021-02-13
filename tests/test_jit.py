@@ -65,7 +65,7 @@ def test_agglomeration_jit_2d():
 @pytest.mark.parametrize("system_spec_class", [Hypothetical1D, Hypothetical2D])
 @pytest.mark.parametrize("nrows", [100, 1000])
 @pytest.mark.parametrize("compress", [True, False], ids=["compress", "no_compress"])
-def test_benchmark_agglomeration(nrows, system_spec_class, compress, benchmark, printer):
+def test_benchmark_agglomeration(nrows, system_spec_class, compress, benchmark):
     system_spec = system_spec_class()
     form = system_spec.forms[0]
     dim = form.dimensionality
@@ -81,7 +81,7 @@ def test_benchmark_agglomeration(nrows, system_spec_class, compress, benchmark, 
     B, D = benchmark(binary_agglomeration_jit, n, alpha, form.volume_fraction_powers, form.shape_factor,
                      crystallizer_volume, compression_interval=compression_interval)
     assert_volume_equal_after_agglomeration(n, B, D, form)
-    printer(f"n rows in B: {B.shape[0]}")
+    print(f"n rows in B: {B.shape[0]}")
 
 
 def test_agglomeration_ignore_particles():
@@ -123,7 +123,7 @@ def test_agglomeration_ignore_particles():
 @pytest.mark.parametrize("nrows", [100, 1000, 10000, 100000])
 @pytest.mark.parametrize("ndim", [1, 2, 3])
 @pytest.mark.parametrize("scale", [25e-6, 100e-6], ids=["high", "low"])
-def test_compression_jit(nrows, ndim, scale, benchmark, printer):
+def test_compression_jit(nrows, ndim, scale, benchmark):
     scale_count = 1e8
     loc = scale * 2
     sizes = np.random.normal(loc=loc, scale=scale, size=(nrows, ndim))
@@ -147,7 +147,7 @@ def test_compression_jit(nrows, ndim, scale, benchmark, printer):
     result_volume = volume_fraction_jit(result, power, shape_factor)
     assert np.isclose(original_volume, result_volume)
 
-    printer(f"compressed {nrows} to {result.shape[0]}")
+    print(f"compressed {nrows} to {result.shape[0]}")
 
 
 def test_breakage():
@@ -182,7 +182,7 @@ KERNEL_LIST = [
 @pytest.mark.parametrize("system_spec_class", [Hypothetical1D, Hypothetical2D])
 @pytest.mark.parametrize("nrows", [100, 1000])
 @pytest.mark.parametrize("compress", [True, False], ids=["compress", "no_compress"])
-def test_benchmark_breakage(kernels, nrows, system_spec_class, compress, benchmark, printer):
+def test_benchmark_breakage(kernels, nrows, system_spec_class, compress, benchmark):
     system_spec = system_spec_class()
     form = system_spec.forms[0]
     dim = form.dimensionality
@@ -198,4 +198,4 @@ def test_benchmark_breakage(kernels, nrows, system_spec_class, compress, benchma
     B, D = benchmark(binary_breakage_jit, n, kernels, form.volume_fraction_powers, form.shape_factor,
                      crystallizer_volume, compression_interval=compression_interval)
     assert_volume_equal_after_agglomeration(n, B, D, form)
-    printer(f"n rows in B: {B.shape[0]}")
+    print(f"n rows in B: {B.shape[0]}")

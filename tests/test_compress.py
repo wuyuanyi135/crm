@@ -25,7 +25,7 @@ def test_jit_consistency(system_spec_class):
 
 @pytest.mark.parametrize("jit", [True, False])
 @pytest.mark.parametrize("system_spec_class", [Hypothetical1D, Hypothetical2D])
-def test_compress(system_spec_class, jit, printer, benchmark):
+def test_compress(system_spec_class, jit, benchmark):
     if jit:
         pytest.skip("JIT implementation is suboptimal. The list append thread safety prevent a more efficient impl")
     interval = 1e-6
@@ -48,7 +48,7 @@ def test_compress(system_spec_class, jit, printer, benchmark):
 
     assert id(new_state) != id(state), "when inplace=False, the state must be copied"
 
-    printer(f"Compressed n from {state.n[0].shape[0]} rows to {new_state.n[0].shape[0]}")
+    print(f"Compressed n from {state.n[0].shape[0]} rows to {new_state.n[0].shape[0]}")
 
     sdf1 = StateDataFrame([state])
     sdf2 = StateDataFrame([new_state])
@@ -58,4 +58,4 @@ def test_compress(system_spec_class, jit, printer, benchmark):
     assert np.allclose(sdf1.quantiles, sdf2.quantiles, rtol=1e-2)
 
     quantile_rel_change = (sdf2.quantiles - sdf1.quantiles) / sdf1.quantiles
-    printer(f"Quantile relative change: \n {quantile_rel_change}")
+    print(f"Quantile relative change: \n {quantile_rel_change}")
