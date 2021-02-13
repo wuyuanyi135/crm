@@ -1,10 +1,12 @@
+import os
+import threading
 from typing import List
 
 from numba import jit, prange, typed
 import numpy as np
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, nogil=True)
 def per_particle_volume_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, shape_factor: float):
     """
     ignore the count, calculate the per-particle volume
@@ -17,17 +19,17 @@ def per_particle_volume_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, s
     return out * shape_factor
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, nogil=True)
 def particle_volume_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, shape_factor: float):
     return per_particle_volume_jit(n, volume_fraction_powers, shape_factor) * n[:, -1]
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, nogil=True)
 def volume_fraction_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, shape_factor: float):
     return particle_volume_jit(n, volume_fraction_powers, shape_factor).sum(axis=0)
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, nogil=True)
 def volume_average_size_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, shape_factor: float, mode: float = 0.):
     """
 
@@ -133,22 +135,9 @@ def binary_agglomeration_jit(
         combination_table[i, 0, :] = n[self_row_id, :]
         combination_table[i, 1, :] = n[other_row_id, :]
 
-    D = np.zeros((nrows,))
-
-    # shape: (n choose 2, dim + 1)
-    B = np.empty((combination_table.shape[0], ncols))
-
-    for i, row_idx in enumerate(zip(*combination_index)):
-        agglomeration_parent_rows = combination_table[i]
-
-        reduced = alpha * np.prod(agglomeration_parent_rows[:, -1]) * crystallizer_volume_square
-
-        # this for loop should just run twice for binary agglomeration.
-        for r in row_idx:
-            D[r] += reduced
-
-        B[i, :] = volume_average_size_jit(agglomeration_parent_rows, volume_fraction_powers, shape_factor, mode=-1.)
-        B[i, -1] = reduced
+    B, D = binary_agglomeration_internal(alpha, combination_index, combination_table, crystallizer_volume_square, ncols,
+                                         nrows,
+                                         shape_factor, volume_fraction_powers)
 
     if compression_interval > 0:
         B = compress_jit(B, volume_fraction_powers, shape_factor, compression_interval)
@@ -160,7 +149,94 @@ def binary_agglomeration_jit(
     return B, D_original
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, nogil=True)
+def binary_agglomeration_internal(
+        alpha,
+        combination_index,
+        combination_table,
+        crystallizer_volume_square,
+        ncols,
+        nrows,
+        shape_factor,
+        volume_fraction_powers
+):
+    D = np.zeros((nrows,))
+    # shape: (n choose 2, dim + 1)
+    B = np.empty((combination_table.shape[0], ncols))
+    for i, row_idx in enumerate(zip(*combination_index)):
+        agglomeration_parent_rows = combination_table[i]
+
+        reduced = alpha * np.prod(agglomeration_parent_rows[:, -1]) * crystallizer_volume_square
+
+        # this for loop should just run twice for binary agglomeration.
+        for r in row_idx:
+            D[r] += reduced
+
+        B[i, :] = volume_average_size_jit(agglomeration_parent_rows, volume_fraction_powers, shape_factor, mode=-1.)
+        B[i, -1] = reduced
+    return B, D
+
+
+def binary_agglomeration_multithread(
+        n: np.ndarray,
+        alpha: float,
+        volume_fraction_powers: np.ndarray,
+        shape_factor: float,
+        crystallizer_volume: float,
+        compression_interval: float = 0.,
+        minimum_count: float = 1000.,
+        nthread=None,
+):
+    nthread = nthread or os.cpu_count()
+
+    included_rows = n[:, -1] >= minimum_count
+    n_original = n
+    n = n[included_rows]
+
+    nrows = n.shape[0]
+    ncols = n.shape[1]
+    crystallizer_volume_square = crystallizer_volume ** 2
+    combination_index = np.triu_indices(nrows, 0)
+    combination_table = n[combination_index, :].swapaxes(0, 1)
+
+    # split into multiple arrays
+    idx = np.arange(combination_table.shape[0], dtype=np.int)
+    subarray_idx = np.array_split(idx, nthread)
+    index_subarray = [(combination_index[0][x], combination_index[1][x]) for x in subarray_idx]
+    table_subarray = [combination_table[x] for x in subarray_idx]
+    x = zip(index_subarray, table_subarray)
+
+    D = []
+    B = []
+    def map_func(x):
+        idx, tbl = x
+        B_, D_ = binary_agglomeration_internal(alpha, idx, tbl, crystallizer_volume_square, ncols,
+                                             nrows,
+                                             shape_factor, volume_fraction_powers)
+        D.append(D_)
+        B.append(B_)
+
+    ths = [threading.Thread(target=map_func, args=(arg, )) for arg in x]
+    for th in ths:
+        th.start()
+    for th in ths:
+        th.join()
+
+
+    D = sum(D)
+    B = np.vstack(B)
+
+    if compression_interval > 0:
+        B = compress_jit(B, volume_fraction_powers, shape_factor, compression_interval)
+
+    # restore D to the same rows as original n
+    D_original = np.zeros((n_original.shape[0],))
+    D_original[included_rows] = D
+
+    return B, D_original
+
+
+@jit(nopython=True, cache=True, nogil=True)
 def compress_jit(n, volume_fraction_powers: np.ndarray, shape_factor: float, interval: float = 1e-6):
     """
     accelerated compression algorithm
@@ -234,7 +310,7 @@ def compress_jit(n, volume_fraction_powers: np.ndarray, shape_factor: float, int
         return ret
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, nogil=True)
 def binary_breakage_jit(
         n: np.ndarray,
         kernels: np.ndarray,

@@ -3,7 +3,7 @@ import numpy as np
 
 from crm.base.system_spec import FormSpec
 from crm.utils.jit import volume_average_size_jit, binary_agglomeration_jit, compress_jit, volume_fraction_jit, \
-    binary_breakage_jit
+    binary_breakage_jit, binary_agglomeration_multithread
 from crm.presets.hypothetical import Hypothetical1D, Hypothetical2D
 
 
@@ -62,24 +62,50 @@ def test_agglomeration_jit_2d():
     assert_volume_equal_after_agglomeration(n, B, D, form)
 
 
+def test_agglomeration_multithread():
+    system_spec = Hypothetical1D()
+    form = system_spec.forms[0]
+    dim = form.dimensionality
+    crystallizer_volume = 150e-6  # mL
+    alpha = 4.86e12
+    nrows = 1000
+
+    sizes = np.random.normal(loc=100e-6, scale=20e-6, size=(nrows, dim))
+    sizes = np.clip(sizes, 0, np.inf)
+    cnts = np.random.random((nrows, 1)) * 1e8
+    n = np.hstack((sizes, cnts))
+
+    B, D = binary_agglomeration_multithread(n, alpha, form.volume_fraction_powers, form.shape_factor,
+                                            crystallizer_volume)
+    assert_volume_equal_after_agglomeration(n, B, D, form)
+    print(f"n rows in B: {B.shape[0]}")
+
+
 @pytest.mark.parametrize("system_spec_class", [Hypothetical1D, Hypothetical2D])
 @pytest.mark.parametrize("nrows", [100, 1000])
 @pytest.mark.parametrize("compress", [True, False], ids=["compress", "no_compress"])
-def test_benchmark_agglomeration(nrows, system_spec_class, compress, benchmark):
+@pytest.mark.parametrize("mt", [True, False], ids=["mt", "st"])
+def test_benchmark_agglomeration(nrows, system_spec_class, compress, mt, benchmark):
     system_spec = system_spec_class()
     form = system_spec.forms[0]
     dim = form.dimensionality
     crystallizer_volume = 150e-6  # mL
     alpha = 4.86e12
 
-    sizes = np.random.random((nrows, dim)) * nrows * 1e-6
+    loc = 100e-6
+    scale = 20e-6
+    sizes = np.random.normal(loc=loc, scale=scale, size=(nrows, dim))
+    sizes = np.clip(sizes, loc - 2 * scale, loc + 2 * scale)
     cnts = np.random.random((nrows, 1)) * 1e8
     n = np.hstack((sizes, cnts))
 
     compression_interval = 1e-6 if compress else 0.
-
-    B, D = benchmark(binary_agglomeration_jit, n, alpha, form.volume_fraction_powers, form.shape_factor,
-                     crystallizer_volume, compression_interval=compression_interval)
+    if mt:
+        B, D = benchmark(binary_agglomeration_multithread, n, alpha, form.volume_fraction_powers, form.shape_factor,
+                         crystallizer_volume, compression_interval=compression_interval, nthread=6)
+    else:
+        B, D = benchmark(binary_agglomeration_jit, n, alpha, form.volume_fraction_powers, form.shape_factor,
+                         crystallizer_volume, compression_interval=compression_interval)
     assert_volume_equal_after_agglomeration(n, B, D, form)
     print(f"n rows in B: {B.shape[0]}")
 
