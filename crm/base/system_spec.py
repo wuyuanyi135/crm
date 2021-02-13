@@ -4,7 +4,8 @@ from typing import List, TypeVar, Tuple, Optional
 import numpy as np
 
 from crm.base.state import State
-from crm.utils.jit import volume_fraction_jit, particle_volume_jit, volume_average_size_jit
+from crm.utils.jit import volume_fraction_jit, particle_volume_jit, volume_average_size_jit, binary_agglomeration_jit, \
+    binary_breakage_jit
 
 
 class FormSpec:
@@ -147,11 +148,34 @@ class FormSpec:
 
 
 class ParametricFormSpec(FormSpec):
-    def __init__(self, name: str, density: float, solubility_coefs: np.ndarray, g_coefs: np.ndarray,
-                 g_powers: np.ndarray, d_coefs: np.ndarray, d_powers: np.ndarray, pn_coef: float, pn_power: float,
-                 pn_ke: float, sn_coef: float, sn_power: float, sn_vol_power: float, g_betas: np.ndarray = None,
-                 g_eas: np.ndarray = None, d_betas: np.ndarray = None, d_eas: np.ndarray = None, pn_ea: float = 0,
-                 sn_ea: float = 0, shape_factor=None, volume_fraction_powers=None):
+    def __init__(
+            self,
+            name: str,
+            density: float,
+            solubility_coefs: np.ndarray,
+            g_coefs: np.ndarray,
+            g_powers: np.ndarray,
+            d_coefs: np.ndarray,
+            d_powers: np.ndarray,
+            pn_coef: float,
+            pn_power: float,
+            pn_ke: float,
+            sn_coef: float,
+            sn_power: float,
+            sn_vol_power: float,
+            g_betas: np.ndarray = None,
+            g_eas: np.ndarray = None,
+            d_betas: np.ndarray = None,
+            d_eas: np.ndarray = None,
+            pn_ea: float = 0,
+            sn_ea: float = 0,
+            shape_factor=None,
+            volume_fraction_powers=None,
+            agg_kernel: Optional[float] = None,
+            brk_kernel: Optional[np.ndarray] = None,
+            min_count: float = 1000,
+            compression_interval: float = 0,
+    ):
         """
         :param solubility_coefs: solubility in g solute/g solvent. solubility = poly[0] * T**0 + ...
         :param g_coefs: coefficients of growth. For nD growth, provide a shape of (N_dim, )
@@ -172,9 +196,15 @@ class ParametricFormSpec(FormSpec):
         :param sn_ea: optional secondary nucleation activation energy
         :param shape_factor: optional shape factor
         :param volume_fraction_powers: optional volume fraction powers.
+        :param agg_kernel: agglomeration kernel in unit of m^3/s
+        :param brk_kernel: breakage kernel. Rows as kernels. Columns as split ratio and probability.
         """
 
         super().__init__(name)
+        self.brk_kernel = brk_kernel
+        self.compression_interval = compression_interval
+        self.min_count = min_count
+        self.agg_kernel = agg_kernel
         self.g_coefs = g_coefs
         self.dimensionality = g_coefs.shape[0]
 
@@ -201,6 +231,22 @@ class ParametricFormSpec(FormSpec):
         if volume_fraction_powers is not None:
             self.volume_fraction_powers = volume_fraction_powers
         self.density = density
+
+    def agglomeration(self, n: np.ndarray, state: State = None) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+        if self.agg_kernel is None:
+            return None
+
+        B, D = binary_agglomeration_jit(n, self.agg_kernel, self.volume_fraction_powers, self.shape_factor,
+                                        state.volume,
+                                        compression_interval=self.compression_interval, minimum_count=self.min_count)
+        return B, D
+
+    def breakage(self, n: np.ndarray, state: State = None) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+        if self.brk_kernel is None:
+            return None
+        B, D = binary_breakage_jit(n, self.brk_kernel, self.volume_fraction_powers, self.shape_factor, state.volume,
+                                   compression_interval=self.compression_interval, minimum_count=self.min_count)
+        return B, D
 
     def solubility(self, t: float) -> float:
         length = len(self.solubility_coefs)

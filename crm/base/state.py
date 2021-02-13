@@ -25,6 +25,9 @@ class State:
     # count density [Colum 1-N: size in meter; Colum N+1 count in #/m3] each element in the list refer to different
     n: List[np.ndarray] = field(default_factory=list)
 
+    # system volume in m3. Currently being used by agglomeration and breakage only.
+    volume: float = None
+
     # Extra information attached by the solver.
     extra: Union[None, Dict] = None
 
