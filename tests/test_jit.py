@@ -1,3 +1,5 @@
+from multiprocessing.pool import ThreadPool
+
 import pytest
 import numpy as np
 
@@ -98,11 +100,11 @@ def test_benchmark_agglomeration(nrows, system_spec_class, compress, mt, benchma
     sizes = np.clip(sizes, loc - 2 * scale, loc + 2 * scale)
     cnts = np.random.random((nrows, 1)) * 1e8
     n = np.hstack((sizes, cnts))
-
     compression_interval = 1e-6 if compress else 0.
+
     if mt:
         B, D = benchmark(binary_agglomeration_multithread, n, alpha, form.volume_fraction_powers, form.shape_factor,
-                         crystallizer_volume, compression_interval=compression_interval, nthread=6)
+                         crystallizer_volume, compression_interval=compression_interval)
     else:
         B, D = benchmark(binary_agglomeration_jit, n, alpha, form.volume_fraction_powers, form.shape_factor,
                          crystallizer_volume, compression_interval=compression_interval)

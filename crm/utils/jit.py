@@ -177,6 +177,16 @@ def binary_agglomeration_internal(
     return B, D
 
 
+@jit(nopython=True, nogil=True)
+def _map_func(B, D, alpha, idx, tbl, subarray_idx, crystallizer_volume_square, ncols, nrows, shape_factor,
+              volume_fraction_powers):
+    B_, D_ = binary_agglomeration_internal(alpha, idx, tbl, crystallizer_volume_square, ncols,
+                                           nrows,
+                                           shape_factor, volume_fraction_powers)
+    D[:] += D_
+    B[subarray_idx] = B_
+
+
 def binary_agglomeration_multithread(
         n: np.ndarray,
         alpha: float,
@@ -204,27 +214,18 @@ def binary_agglomeration_multithread(
     subarray_idx = np.array_split(idx, nthread)
     index_subarray = [(combination_index[0][x], combination_index[1][x]) for x in subarray_idx]
     table_subarray = [combination_table[x] for x in subarray_idx]
-    x = zip(index_subarray, table_subarray)
 
-    D = []
-    B = []
-    def map_func(x):
-        idx, tbl = x
-        B_, D_ = binary_agglomeration_internal(alpha, idx, tbl, crystallizer_volume_square, ncols,
-                                             nrows,
-                                             shape_factor, volume_fraction_powers)
-        D.append(D_)
-        B.append(B_)
+    D = np.zeros((nrows,))
+    # shape: (n choose 2, dim + 1)
+    B = np.empty((combination_table.shape[0], ncols))
 
-    ths = [threading.Thread(target=map_func, args=(arg, )) for arg in x]
+    ths = [threading.Thread(target=_map_func, args=(
+        B, D, alpha, arg[0], arg[1], arg[2], crystallizer_volume_square, ncols, nrows, shape_factor,
+        volume_fraction_powers)) for arg in zip(index_subarray, table_subarray, subarray_idx)]
     for th in ths:
         th.start()
     for th in ths:
         th.join()
-
-
-    D = sum(D)
-    B = np.vstack(B)
 
     if compression_interval > 0:
         B = compress_jit(B, volume_fraction_powers, shape_factor, compression_interval)
