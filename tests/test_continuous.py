@@ -9,7 +9,7 @@ from crm.base.state import InletState
 from crm.presets.hypothetical import Hypothetical1D
 from crm.utils.csd import edges_to_center_grid
 from crm.utils.pandas import StateDataFrame
-from solvers.mcsolver import MCSolverOptions, MCSolver
+from crm.solvers.mcsolver import MCSolverOptions, MCSolver
 from matplotlib import pyplot as plt
 import base64
 
@@ -17,11 +17,11 @@ import base64
 @pytest.mark.has_plot
 def test_steady_state_plot(extra):
     system_spec = Hypothetical1D()
-    inlet_state = system_spec.make_state(state_type=InletState, concentration=system_spec.forms[0].solubility(60),
+    inlet_state = system_spec.make_state(state_type=InletState, concentration=system_spec.forms[0].solubility(t=60),
                                          temperature=25, rt=300)
     input_ = ContinuousInput(inlet_state)
 
-    initial_condition = system_spec.make_state(concentration=system_spec.forms[0].solubility(25), temperature=25)
+    initial_condition = system_spec.make_state(concentration=system_spec.forms[0].solubility(t=25), temperature=25)
 
     options = MCSolverOptions(output_spec=OutputLastSpec())
     solver = MCSolver(system_spec, options)

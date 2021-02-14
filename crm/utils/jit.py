@@ -62,7 +62,7 @@ def volume_average_size_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, s
         return ret
     else:
         # multi-dimensional N
-        non_first_dim_mean_sizes = n[:, 1:-1].sum(axis=0) / nrows
+        non_first_dim_mean_sizes = (n[:, 1:-1] * np.expand_dims(n[:, -1], 1)).sum(axis=0) / n[:, -1].sum()
         particle_average_volume = particle_average_volume / shape_factor
         non_first_dim_prod = np.prod(non_first_dim_mean_sizes ** volume_fraction_powers[1:])
 
@@ -77,24 +77,6 @@ def volume_average_size_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, s
         ret[-1] = count
 
         return ret
-
-
-@jit(nopython=True, cache=True, fastmath=True, parallel=True)
-def partition_equivalent_rows_jit(ns, volume_fraction_powers: np.ndarray, shape_factor: float) -> np.ndarray:
-    ncols = ns[0].shape[1]
-    nrows = len(ns)
-    ret = np.zeros((nrows, ncols))
-
-    for i in prange(nrows):
-        p = ns[i]
-        if p.size == 0:
-            continue
-        equivalent_row = volume_average_size_jit(p, volume_fraction_powers, shape_factor)
-        ret[i, :] = equivalent_row[0, :]
-
-    ret = ret[ret[:, -1] != 0, :]
-    return ret
-
 
 @jit(nopython=True, cache=True, nogil=True)
 def binary_agglomeration_jit(
@@ -237,7 +219,7 @@ def binary_agglomeration_multithread(
     return B, D_original
 
 
-@jit(nopython=True, cache=True, nogil=True)
+@jit(nopython=True, cache=True)
 def compress_jit(n, volume_fraction_powers: np.ndarray, shape_factor: float, interval: float = 1e-6):
     """
     accelerated compression algorithm
@@ -265,10 +247,11 @@ def compress_jit(n, volume_fraction_powers: np.ndarray, shape_factor: float, int
     count_grid = np.zeros((np.prod(cnts),))
     sum_non_adjust_dim_grid = np.zeros((np.prod(cnts), ndims - 1))
 
-    n_non_adjust_dim = np.delete(n.T, (adjust_dim, -1)).T
+    n_non_adjust_dim = n[:, 1:-1] # TODO: do not support adjust_dim
 
     for i, (row, non_adjust_row) in enumerate(zip(n, n_non_adjust_dim)):
         sizes = row[:-1]
+        count = row[-1]
 
         # mapping sizes to indices
         idx = (sizes - dims_min) // interval
@@ -276,11 +259,12 @@ def compress_jit(n, volume_fraction_powers: np.ndarray, shape_factor: float, int
         # convert 2d index to 1d index
         flat_idx = int((cumprod_dim * idx).sum())
 
-        vol = volume_fraction_jit(np.expand_dims(row, 0), volume_fraction_powers, shape_factor)
+        vol = np.prod(sizes ** volume_fraction_powers) * shape_factor * count
         volume_grid[flat_idx] += vol
-        count_grid[flat_idx] += row[-1]
+        count_grid[flat_idx] += count
 
-        sum_non_adjust_dim_grid[flat_idx, :] += non_adjust_row
+        # this will be count mean, so its weight is count.
+        sum_non_adjust_dim_grid[flat_idx] += non_adjust_row * count
 
     # remove the empty rows in the grid
     empty_idx = count_grid == 0

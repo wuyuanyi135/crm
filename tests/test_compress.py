@@ -24,10 +24,9 @@ def test_jit_consistency(system_spec_class):
 
 
 @pytest.mark.parametrize("jit", [True, False])
+@pytest.mark.parametrize("grid_count", [100, 1000])
 @pytest.mark.parametrize("system_spec_class", [Hypothetical1D, Hypothetical2D])
-def test_compress(system_spec_class, jit, benchmark):
-    if jit:
-        pytest.skip("JIT implementation is suboptimal. The list append thread safety prevent a more efficient impl")
+def test_compress(system_spec_class, jit, grid_count, benchmark):
     interval = 1e-6
     compressor = BinningCompressor(grid_interval=interval, jit=jit)
 
@@ -42,7 +41,7 @@ def test_compress(system_spec_class, jit, benchmark):
     # compress something
     dimensionality = system_spec.forms[0].dimensionality
     state = system_spec.make_state(
-        n=[create_normal_distribution_n([100e-6] * dimensionality, [10e-6] * dimensionality, grid_count=200,
+        n=[create_normal_distribution_n([100e-6] * dimensionality, [10e-6] * dimensionality, grid_count=grid_count,
                                         count_density=1e8)])
     new_state = benchmark(compressor.compress, state, inplace=False)
 
@@ -55,7 +54,7 @@ def test_compress(system_spec_class, jit, benchmark):
 
     assert np.allclose(sdf1.volume_fraction, sdf2.volume_fraction)
     assert np.allclose(sdf1.counts, sdf2.counts)
-    assert np.allclose(sdf1.quantiles, sdf2.quantiles, rtol=1e-2)
+    assert np.allclose(sdf1.quantiles, sdf2.quantiles, atol=1e-6)
 
     quantile_rel_change = (sdf2.quantiles - sdf1.quantiles) / sdf1.quantiles
     print(f"Quantile relative change: \n {quantile_rel_change}")

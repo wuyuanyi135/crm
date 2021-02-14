@@ -10,7 +10,7 @@ from crm.base.solver import SolverOptions, Solver
 from crm.base.state import State, InletState
 from crm.base.system_spec import SystemSpec
 from crm.utils.compress import BinningCompressor
-from solvers.mcsolver import MCSolver, MCSolverOptions
+from crm.solvers.mcsolver import MCSolver, MCSolverOptions
 
 
 @dataclass

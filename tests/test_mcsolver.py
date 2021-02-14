@@ -1,9 +1,9 @@
 import numpy as np
 
 from crm.base.input import ConstantTemperatureInput, ContinuousInput
-from crm.base.output_spec import OutputLastSpec
+from crm.base.output_spec import OutputLastSpec, OutputAllSpec
 from crm.base.state import InletState
-from solvers.mcsolver import MCSolver, MCSolverOptions
+from crm.solvers.mcsolver import MCSolver, MCSolverOptions
 from crm.presets.hypothetical import Hypothetical1D, HypotheticalPolymorphic1D, HypotheticalEqualGrowth2D, HypotheticalPolymorphicEqualGrowth2D
 
 
@@ -11,7 +11,7 @@ def test_simple():
     options = MCSolverOptions(attach_extra=True)
 
     system_spec = Hypothetical1D()
-    concentration = system_spec.forms[0].solubility(60)
+    concentration = system_spec.forms[0].solubility(t=60)
     state = system_spec.make_state(concentration=concentration, temperature=25)
 
     solver = MCSolver(system_spec, options)
@@ -23,7 +23,7 @@ def test_polymorphic():
     options = MCSolverOptions(attach_extra=True, profiling=True)
 
     system_spec = HypotheticalPolymorphic1D()
-    concentration = system_spec.forms[0].solubility(60)
+    concentration = system_spec.forms[0].solubility(t=60)
     state = system_spec.make_state(concentration=concentration, temperature=25)
 
     solver = MCSolver(system_spec, options)
@@ -40,7 +40,7 @@ def test_equal_growth_2d_should_match_1d():
     options = MCSolverOptions(attach_extra=True, profiling=True, output_spec=OutputLastSpec())
     system_spec_2d = HypotheticalEqualGrowth2D()
     system_spec_1d = Hypothetical1D()
-    concentration = system_spec_2d.forms[0].solubility(60)
+    concentration = system_spec_2d.forms[0].solubility(t=60)
 
     state = system_spec_2d.make_state(concentration=concentration, temperature=25)
     solver2d = MCSolver(system_spec_2d, options)
@@ -59,7 +59,7 @@ def test_equal_growth_2d_polymorph_match_1d_polymorph():
     options = MCSolverOptions(attach_extra=True, profiling=True, output_spec=OutputLastSpec())
     system_spec_2d = HypotheticalPolymorphicEqualGrowth2D()
     system_spec_1d = HypotheticalPolymorphic1D()
-    concentration = system_spec_2d.forms[0].solubility(60)
+    concentration = system_spec_2d.forms[0].solubility(t=60)
 
     state = system_spec_2d.make_state(concentration=concentration, temperature=25)
     solver2d = MCSolver(system_spec_2d, options)
@@ -77,7 +77,7 @@ def test_equal_growth_2d_polymorph_match_1d_polymorph():
 def test_continuous():
     options = MCSolverOptions(attach_extra=True, profiling=True, output_spec=OutputLastSpec())
     system_spec = Hypothetical1D()
-    concentration = system_spec.forms[0].solubility(60)
+    concentration = system_spec.forms[0].solubility(t=60)
     state = system_spec.make_state(concentration=concentration, temperature=25)
     solver = MCSolver(system_spec, options)
 
@@ -85,3 +85,15 @@ def test_continuous():
     input_ = ContinuousInput(inlet_state)
     output = solver.compute(state, 3600, input_=input_)
     assert True
+
+def test_starting_from_equilibrium():
+    input_ = ConstantTemperatureInput(25.)
+    system_spec = Hypothetical1D()
+    initial_condition = system_spec.make_state(concentration=system_spec.forms[0].solubility(t=25), temperature=25,
+                                               volume=150e-6)
+    options = MCSolverOptions(output_spec=OutputAllSpec(), time_step=1.0, )
+    solver = MCSolver(system_spec, options)
+
+    solve_time = 60
+    result = solver.compute(initial_condition, solve_time, input_)
+    assert len(result) == 60

@@ -11,7 +11,7 @@ def test_two_stage_1d():
     first_stage_input = ContinuousInput(
         system_spec.make_state(
             state_type=InletState,
-            concentration=system_spec.forms[0].solubility(60),
+            concentration=system_spec.forms[0].solubility(t=60),
             temperature=60,
             rt=600
         )
@@ -19,7 +19,7 @@ def test_two_stage_1d():
     stages = [
         StageSpec(
             initial_condition=system_spec.make_state(
-                concentration=system_spec.forms[0].solubility(40),
+                concentration=system_spec.forms[0].solubility(t=40),
                 temperature=40
             ),
             relative_volume=1,
@@ -27,7 +27,7 @@ def test_two_stage_1d():
         ),
         StageSpec(
             initial_condition=system_spec.make_state(
-                concentration=system_spec.forms[0].solubility(20),
+                concentration=system_spec.forms[0].solubility(t=20),
                 temperature=20
             ),
             relative_volume=1,
@@ -44,7 +44,7 @@ def test_two_stage_2d():
     first_stage_input = ContinuousInput(
         system_spec.make_state(
             state_type=InletState,
-            concentration=system_spec.forms[0].solubility(60),
+            concentration=system_spec.forms[0].solubility(t=60),
             temperature=60,
             rt=600
         )
@@ -52,7 +52,7 @@ def test_two_stage_2d():
     stages = [
         StageSpec(
             initial_condition=system_spec.make_state(
-                concentration=system_spec.forms[0].solubility(40),
+                concentration=system_spec.forms[0].solubility(t=40),
                 temperature=40
             ),
             relative_volume=1,
@@ -60,7 +60,7 @@ def test_two_stage_2d():
         ),
         StageSpec(
             initial_condition=system_spec.make_state(
-                concentration=system_spec.forms[0].solubility(20),
+                concentration=system_spec.forms[0].solubility(t=20),
                 temperature=20
             ),
             relative_volume=1,

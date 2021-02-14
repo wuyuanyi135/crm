@@ -1,15 +1,14 @@
 # Transform the result into easy-to-use pandas dataframes.
 import functools
 import itertools
+from typing import List, Dict
 
-from dataclasses import dataclass
-from typing import List, Tuple, Literal, Dict
+import numpy as np
+import pandas as pd
 
 from crm.base.state import State
+from crm.base.system_spec import SystemSpec
 from crm.utils.statistics import weighted_quantile
-import pandas as pd
-import numpy as np
-from crm.base.system_spec import SystemSpec, FormSpec
 
 TSProperty = pd.DataFrame
 # the time series property with row index = time and column = polymorph name.
@@ -64,7 +63,8 @@ class StateDataFrame:
         :return:
         """
         temperature = self.temperature.iloc[:, 0]  # to series
-        solubility_per_form = [temperature.apply(f.solubility).rename(f.name) for f in self.system_spec.forms]
+        solubility_per_form = [temperature.apply(lambda x: f.solubility(t=x)).rename(f.name) for f in
+                               self.system_spec.forms]
         solubility = pd.concat(solubility_per_form, axis=1)
         return solubility
 
@@ -79,7 +79,7 @@ class StateDataFrame:
 
         ss = []
         for s, c in zip(solubility.itertuples(index=False), concentration):
-            ss.append([self.system_spec.supersaturation(sol, c) for sol in s])
+            ss.append([f.supersaturation(s_each_form, c) for s_each_form, f in zip(s, self.system_spec.forms)])
         supersaturation = pd.DataFrame(ss, columns=self.form_names, index=self.time)
         return supersaturation
 
@@ -248,16 +248,13 @@ class StateDataFrame:
         level 1: nucleation kinetics name
         :return:
         """
-        ss = self.supersaturation
-        vf = self.volume_fraction
-        t = self.temperature
         forms = self._system_spec.forms
 
         index = pd.MultiIndex.from_product([self.form_names, ("primary", "secondary")],
                                            names=["form", "nucleation_kinetics"])
         data = []
-        for s, v, t in zip(ss.itertuples(index=False), vf.itertuples(index=False), t.itertuples(index=False)):
-            data.append(np.hstack([f.nucleation_rate(t[0], s[i], v[i]) for i, f in enumerate(forms)]))
+        for s in self.states:
+            data.append(np.hstack([f.nucleation_rate(s, i) for i, f in enumerate(forms)]))
 
         nuc_df = pd.DataFrame(np.vstack(data), columns=index, index=self.time)
         return nuc_df
@@ -273,8 +270,6 @@ class StateDataFrame:
         """
         evaluate_at = self._gds_evaluated_at
         dimension_ids = [range(f.dimensionality) for f in self._system_spec.forms]
-        ss = self.supersaturation
-        t = self.temperature
         forms = self._system_spec.forms
 
         first_two_levels = []
@@ -286,13 +281,14 @@ class StateDataFrame:
 
         evaluate_at_array = evaluate_at.reshape((-1, 1))
         data = []
-        for s, t in zip(ss.itertuples(index=False), t.itertuples(index=False)):
+        for state in self.states:
             data_each_form = []
-            for f, s_each_form in zip(forms, s):
-                if s_each_form > self._system_spec.solubility_break_point:
-                    gd = f.growth_rate(t[0], s_each_form, evaluate_at_array)
+            for i, f in enumerate(forms):
+                ss = f.state_supersaturation(state, i)
+                if ss > f.supersaturation_break_point:
+                    gd = f.growth_rate(state, i)
                 else:
-                    gd = f.dissolution_rate(t[0], s_each_form, evaluate_at_array)
+                    gd = f.dissolution_rate(state, i)
                 data_each_form.append(gd)
             data.append(np.hstack(data_each_form))
 

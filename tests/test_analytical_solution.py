@@ -5,7 +5,7 @@ from crm.base.output_spec import OutputLastSpec
 from crm.base.state import State
 from crm.utils.csd import create_normal_distribution_n
 from crm.base.system_spec import SystemSpec, FormSpec
-from solvers.mcsolver import MCSolver, MCSolverOptions
+from crm.solvers.mcsolver import MCSolver, MCSolverOptions
 from crm.utils.pandas import StateDataFrame
 
 
@@ -14,16 +14,16 @@ class ConstantGrowthForm(FormSpec):
         super().__init__(name)
         self.gds = gds
 
-    def solubility(self, t: float) -> float:
+    def solubility(self, state: State = None, polymorph_idx: int = None, t=None) -> float:
         return 0.1
 
-    def growth_rate(self, t: float, ss: float, n: np.ndarray = None, state: State = None) -> np.ndarray:
+    def growth_rate(self, state: State = None, polymorph_idx: int = None) -> np.ndarray:
         return np.array(self.gds)
 
-    def dissolution_rate(self, t: float, ss: float, n: np.ndarray = None, state: State = None) -> np.ndarray:
+    def dissolution_rate(self, state: State = None, polymorph_idx: int = None) -> np.ndarray:
         return np.array(-self.gds)
 
-    def nucleation_rate(self, t: float, ss: float, vf: float, state: State = None) -> np.ndarray:
+    def nucleation_rate(self, state: State = None, polymorph_idx: int = None, vf=None) -> np.ndarray:
         return np.array([0, 0])
 
 
@@ -35,16 +35,16 @@ class ConstantGrowthNucleationForm(FormSpec):
         self.nuc = nuc
         self.gds = gds
 
-    def solubility(self, t: float) -> float:
+    def solubility(self, state: State = None, polymorph_idx: int = None, t=None) -> float:
         return 0.1
 
-    def growth_rate(self, t: float, ss: float, n: np.ndarray = None, state: State = None) -> np.ndarray:
+    def growth_rate(self, state: State = None, polymorph_idx: int = None) -> np.ndarray:
         return np.array(self.gds)
 
-    def dissolution_rate(self, t: float, ss: float, n: np.ndarray = None, state: State = None) -> np.ndarray:
+    def dissolution_rate(self, state: State = None, polymorph_idx: int = None) -> np.ndarray:
         return np.array(-self.gds)
 
-    def nucleation_rate(self, t: float, ss: float, vf: float, state: State = None) -> np.ndarray:
+    def nucleation_rate(self, state: State = None, polymorph_idx: int = None, vf=None) -> np.ndarray:
         return np.array([self.nuc, 0])
 
     def volume_fraction(self, n: np.ndarray):

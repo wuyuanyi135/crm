@@ -14,21 +14,21 @@ def test_hypothetical_kinetics():
 
     form = forms[0]
 
-    solubility = form.solubility(40)
+    state = system_spec.make_state(temperature=40, concentration=0.028914)
+    solubility = form.solubility(state, 0)
     assert np.isclose(solubility, 0.019276)
 
-    ss = system_spec.supersaturation(solubility, 0.028914)
-    gd = form.growth_rate(40, ss)
+    gd = form.growth_rate(state, 0)
     assert np.isclose(gd, 0.05e-6)
 
-    nr = form.nucleation_rate(40, ss, 0.1)
+    nr = form.nucleation_rate(state, 0, vf=0.1)
 
     assert np.isclose(nr[0], 25000000)
     assert np.isclose(nr[1], 5.3861e+08)
 
     # dissolution
-    ss = system_spec.supersaturation(solubility, 0.009638)
-    gd = form.dissolution_rate(40, ss)
+    state = system_spec.make_state(temperature=40, concentration=0.009638)
+    gd = form.dissolution_rate(state, 0)
     assert np.isclose(gd, -1.1e-6)
 
 

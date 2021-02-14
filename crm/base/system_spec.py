@@ -17,6 +17,7 @@ class FormSpec:
     volume_fraction_powers: np.ndarray = np.array([3.])
 
     dimensionality: int = 1
+    supersaturation_break_point = 0
 
     jit: bool = True
 
@@ -27,50 +28,61 @@ class FormSpec:
             self.particle_volume = lambda n: particle_volume_jit(n, self.volume_fraction_powers, self.shape_factor)
             self.volume_fraction = lambda n: volume_fraction_jit(n, self.volume_fraction_powers, self.shape_factor)
             self.volume_average_size = lambda n: volume_average_size_jit(n, self.volume_fraction_powers,
+
                                                                          self.shape_factor)
 
-    def solubility(self, t: float) -> float:
+    @staticmethod
+    def supersaturation(solubility: float, concentration: float):
+        return (concentration - solubility) / solubility
+
+    def state_supersaturation(self, state: State = None, polymorph_idx: int = None) -> float:
+        """
+        Supersaturation with unified interface
+        :param state:
+        :param polymorph_idx:
+        :return:
+        """
+        sol = self.solubility(state, polymorph_idx)
+        return self.supersaturation(sol, state.concentration)
+
+    def solubility(self, state: State = None, polymorph_idx: int = None, t=None) -> float:
         """
 
-        :param t: Temperature in degrees C
+        :param state:
+        :param polymorph_idx:
+        :param t: Optional temperature for testing or cache
         :return: solubility in kg solute / kg solvent
         """
         raise NotImplementedError()
 
-    def growth_rate(self, t: float, ss: float, n: np.ndarray = None, state: State = None) -> np.ndarray:
+    def growth_rate(self, state: State = None, polymorph_idx: int = None) -> np.ndarray:
         """
 
         :param state:
-        :param n:
-        :param t: Temperature in degrees C
-        :param ss: supersaturation in (c - c*) / c*
+        :param polymorph_idx: designate which polymorphic property to use
         :return: N x M array. N is the length of t and ss, M is the dimensionality. In unit of m/s
         """
         raise NotImplementedError()
 
-    def dissolution_rate(self, t: float, ss: float, n: np.ndarray = None, state: State = None) -> np.ndarray:
+    def dissolution_rate(self, state: State = None, polymorph_idx: int = None) -> np.ndarray:
         """
-        see @growth_rate. This should return a negative value.
+        see growth_rate. This should return a negative value.
         :param state:
-        :param n:
-        :param t:
-        :param ss:
         :return:
         """
         raise NotImplementedError()
 
-    def nucleation_rate(self, t: float, ss: float, vf: float, state: State = None) -> np.ndarray:
+    def nucleation_rate(self, state: State = None, polymorph_idx: int = None, vf=None) -> np.ndarray:
         """
 
         :param state:
-        :param t:
-        :param ss:
-        :param vf: volume fraction
+        :param vf: volume fraction. if supplied, use the supplied one. This argument may be used during test or using
+        cached properties
         :return: primary and secondary nucleation rate. In unit of #/m3/s
         """
         raise NotImplementedError()
 
-    def agglomeration(self, n: np.ndarray, state: State = None) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+    def agglomeration(self, state: State = None, polymorph_idx: int = None) -> Optional[Tuple[np.ndarray, np.ndarray]]:
         """
         Agglomeration parameters.
         :param state:
@@ -80,7 +92,7 @@ class FormSpec:
 
         return None
 
-    def breakage(self, n: np.ndarray, state: State = None) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+    def breakage(self, state: State = None, polymorph_idx: int = None) -> Optional[Tuple[np.ndarray, np.ndarray]]:
         """
         Breakage parameters.
         :param state:
@@ -232,44 +244,63 @@ class ParametricFormSpec(FormSpec):
             self.volume_fraction_powers = volume_fraction_powers
         self.density = density
 
-    def agglomeration(self, n: np.ndarray, state: State = None) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+    def agglomeration(self, state: State = None, polymorph_idx: int = None) -> Optional[Tuple[np.ndarray, np.ndarray]]:
         if self.agg_kernel is None:
             return None
-
+        n = state.n[polymorph_idx]
         B, D = binary_agglomeration_jit(n, self.agg_kernel, self.volume_fraction_powers, self.shape_factor,
                                         state.volume,
                                         compression_interval=self.compression_interval, minimum_count=self.min_count)
         return B, D
 
-    def breakage(self, n: np.ndarray, state: State = None) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+    def breakage(self, state: State = None, polymorph_idx: int = None) -> Optional[Tuple[np.ndarray, np.ndarray]]:
         if self.brk_kernel is None:
             return None
+        n = state.n[polymorph_idx]
         B, D = binary_breakage_jit(n, self.brk_kernel, self.volume_fraction_powers, self.shape_factor, state.volume,
                                    compression_interval=self.compression_interval, minimum_count=self.min_count)
         return B, D
 
-    def solubility(self, t: float) -> float:
+    def solubility(self, state: State = None, polymorph_idx: int = None, t=None) -> float:
+        t = t or state.temperature
         length = len(self.solubility_coefs)
         return (self.solubility_coefs * np.ones((length,)) * t ** np.arange(0, length)).sum()
 
-    def growth_rate(self, t: float, ss: float, n: np.ndarray = None, state=None) -> np.ndarray:
+    def growth_rate(self, state: State = None, polymorph_idx: int = None) -> np.ndarray:
+        solubility = self.solubility(state, polymorph_idx)
+        ss = self.supersaturation(solubility, state.concentration)
+        t = state.temperature
+        n = state.n[polymorph_idx]
         R = 8.3145
+        tk = t + 273.15
+
         if np.all(self.g_betas == 0):
-            return self.g_coefs * ss ** self.g_powers * np.exp(-self.g_eas / R / (t + 273.15))
+            return self.g_coefs * ss ** self.g_powers * np.exp(-self.g_eas / R / tk)
         else:
             return self.g_coefs * ss ** self.g_powers * (1 + self.g_betas) * n[:, :-1] * np.exp(
-                -self.g_eas / R / (t + 273.15))
+                -self.g_eas / R / tk)
 
-    def dissolution_rate(self, t: float, ss: float, n: np.ndarray = None, state=None) -> np.ndarray:
+    def dissolution_rate(self, state: State = None, polymorph_idx: int = None) -> np.ndarray:
+        solubility = self.solubility(state, polymorph_idx)
+        ss = self.supersaturation(solubility, state.concentration)
+        t = state.temperature
+        n = state.n[polymorph_idx]
         R = 8.3145
+        tk = t + 273.15
+
         ss = - ss
         if np.all(self.d_betas == 0):
-            return - self.d_coefs * ss ** self.d_powers * np.exp(-self.d_eas / R / (t + 273.15))
+            return - self.d_coefs * ss ** self.d_powers * np.exp(-self.d_eas / R / tk)
         else:
-            return - self.d_coefs * ss ** self.d_powers * (1 + self.d_betas) * n[:, :-1] * np.exp(
-                -self.d_eas / R / (t + 273.15))
+            return - self.d_coefs * ss ** self.d_powers * (1 + self.d_betas) * n[:, :-1] * np.exp(-self.d_eas / R / tk)
 
-    def nucleation_rate(self, t: float, ss: float, vf: float, state=None) -> np.ndarray:
+    def nucleation_rate(self, state: State = None, polymorph_idx: int = None, vf=None) -> np.ndarray:
+        solubility = self.solubility(state, polymorph_idx)
+        ss = self.supersaturation(solubility, state.concentration)
+        t = state.temperature
+        n = state.n[polymorph_idx]
+        vf = vf or self.volume_fraction(n)
+
         R = 8.3145
         tk = t + 273.15
 
@@ -283,14 +314,8 @@ class SystemSpec:
     name: str
     forms: List[FormSpec]
 
-    solubility_break_point = 0
-
     def __init__(self, name=None):
         self.name = name or self.__class__.__name__
-
-    @staticmethod
-    def supersaturation(solubility: float, concentration: float):
-        return (concentration - solubility) / solubility
 
     def make_state(self, state_type=State, **kwargs) -> State:
         """

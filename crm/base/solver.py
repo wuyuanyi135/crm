@@ -1,16 +1,16 @@
+import os
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Type, List, Dict, Tuple
+from typing import Type, List
 
 import numpy as np
+import psutil
 
-from crm.base.input import Input, ContinuousInput
+from crm.base.input import Input
 from crm.base.output_spec import OutputSpec, OutputAllSpec
 from crm.base.state import State, InletState
 from crm.base.system_spec import SystemSpec
 from crm.utils.git import get_commit_hash
-import os, psutil
 
 process = psutil.Process(os.getpid())
 
@@ -72,7 +72,10 @@ class Solver:
         timestep = options.max_time_step if timestep > options.max_time_step else timestep
         return timestep
 
-    def pre_update_n(self, state, **kwargs):
+    ####################
+    # Event callback
+    ####################
+    def post_apply_continuous_input(self, state, **kwargs):
         pass
 
     def post_solver_step(self, state: State, **kwargs):
@@ -89,6 +92,19 @@ class Solver:
 
     def update_concentration(self, concentration: float, mass_diffs: np.ndarray, time_step: float) -> float:
         raise NotImplementedError()
+
+    def update_agglomeration(self, n: np.ndarray, B, D, time_step: float) -> np.ndarray:
+        """
+        Update n with given B and D. If agglomeration is ignored, return the n itself.
+        :param n:
+        :param B:
+        :param D:
+        :return:
+        """
+        return n
+
+    def update_breakage(self, n: np.ndarray, B, D, time_step: float) -> np.ndarray:
+        return n
 
     def update_with_inlet(self, state: State, inlet: InletState, time_step: float) -> State:
         """
@@ -135,12 +151,12 @@ class Solver:
 
     def process_output(self, state: State, output_spec: OutputSpec, end_time: float,
                        is_initial: bool = False, **kwargs):
-        if output_spec.should_update_output(state, end_time):
+        if output_spec.should_update_output(state, end_time, is_initial=is_initial):
             state = state.copy()  # do not update the internal state.
             state = self.attach_extra(state, is_initial, **kwargs)
             output_spec.update_output(state)
 
-    def make_profiling(self, profiling: dict, name: str):
+    def make_profiling(self, profiling: dict, name: str, clear=False):
         if profiling is None:
             return
 
@@ -149,8 +165,11 @@ class Solver:
             return
 
         if name in profiling:
-            # second entrace
-            profiling[name] = time.perf_counter() - profiling[name]
+            if clear:
+                profiling.pop(name)
+            else:
+                # second entrace
+                profiling[name] = time.perf_counter() - profiling[name]
         else:
             profiling[name] = time.perf_counter()
 
@@ -161,7 +180,6 @@ class Solver:
             input_: Input
     ) -> List[State]:
         """
-        when t=0, the state equals to the initial state.
         :param init_state:
         :param solve_time:
         :param input_:
@@ -171,7 +189,6 @@ class Solver:
         options = self.options
         system_spec = self.system_spec
         forms = system_spec.forms
-        solubility_break_point = system_spec.solubility_break_point
 
         state = init_state.copy()
         vfs = np.array([f.volume_fraction(n) for f, n in zip(forms, state.n)])
@@ -195,6 +212,7 @@ class Solver:
             # This change will potentially harm the performance of batch crystallization because the kinetics may be
             # computed repetitively, but when the state-independent time step is used, or when the system is continuous
             # (the kinetics need to be recalculated again anyway), this might be cleaner
+            # TODO throw exception when time step is too large, and return to here to re-calculate the time step.
             time_step = self.get_time_step(state)
 
             # apply scaling, capping, or custom functions to the time step
@@ -205,61 +223,58 @@ class Solver:
             # if the input contains continuous inlet, update it before the kinetic computation.
             inlet_spec = input_.inlet(state)
             if inlet_spec is not None:
+                self.make_profiling(profiling, "upd_cont")
                 state = self.update_with_inlet(state, inlet_spec, time_step)
 
                 if options.apply_non_continuous_input_twice:
+                    # if the continuous input will change temperature, this option can restore it.
                     state = input_.transform(state)
 
                 # re calculate vfs since the CSD may have been modified by the IO flow.
                 vfs = np.array([f.volume_fraction(n) for f, n in zip(forms, state.n)])
+                self.make_profiling(profiling, "upd_cont")
 
-            # The kinetics of each forms
-            sols = []
-            sses = []
-            nucleation_rate_list = []
-            gds = []
+                self.post_apply_continuous_input(state, profiling=profiling)
+
             for i, (f, n) in enumerate(zip(forms, state.n)):
-                self.make_profiling(profiling, f"kinetics_form_{f.name}")
-                sol = f.solubility(state.temperature)
-                ss = system_spec.supersaturation(sol, state.concentration)
-                if ss == solubility_break_point:
-                    nucleation_rates = np.array((0., 0.))
-                    gd = 0
-                    time_step = np.inf
-                elif ss > solubility_break_point:
-                    nucleation_rates = f.nucleation_rate(state.temperature, ss, vfs[i])
-                    gd = f.growth_rate(state.temperature, ss, n)
-                    time_step = self.get_time_step(state)
+                supersaturation_break_point = f.supersaturation_break_point
+                ss = f.state_supersaturation(state, i)
+
+                self.make_profiling(profiling, f"{f.name}_nucgd")
+                if ss > supersaturation_break_point:
+                    nucleation_rates = f.nucleation_rate(state, i)  # TODO: vfs could be reused
+                    state.n[i] = self.update_nucleation(state.n[i], nucleation_rates, time_step)
+                    gd = f.growth_rate(state, i)
+                    state.n[i] = self.update_growth(state.n[i], gd, time_step)
+                elif ss < supersaturation_break_point:
+                    gd = f.dissolution_rate(state, i)
+                    state.n[i] = self.update_dissolution(state.n[i], gd, time_step)
+                # else: do nothing
+                self.make_profiling(profiling, f"{f.name}_nucgd")
+
+                self.make_profiling(profiling, f"{f.name}_agg")
+                BD = f.agglomeration(state, i)
+                if BD is None:
+                    self.make_profiling(profiling, f"{f.name}_agg", clear=True)
                 else:
-                    nucleation_rates = np.array((0., 0.))
-                    gd = f.dissolution_rate(state.temperature, ss, n)
-                    time_step = self.get_time_step(state)
-                sols.append(sol)
-                sses.append(ss)
-                nucleation_rate_list.append(nucleation_rates)
-                gds.append(gd)
-                self.make_profiling(profiling, f"kinetics_form_{f.name}")
+                    B, D = BD
+                    state.n[i] = self.update_agglomeration(state.n[i], B, D, time_step)
+                    self.make_profiling(profiling, f"{f.name}_agg")
 
-            sses = np.array(sses)
+                self.make_profiling(profiling, f"{f.name}_brk")
+                BD = f.breakage(state, i)
+                if BD is None:
+                    self.make_profiling(profiling, f"{f.name}_brk", clear=True)
+                else:
+                    B, D = BD
+                    state.n[i] = self.update_breakage(state.n[i], B, D, time_step)
+                    self.make_profiling(profiling, f"{f.name}_brk")
 
-            self.pre_update_n(state, profiling=profiling)
-            # update n
-            for i, f in enumerate(forms):
-                self.make_profiling(profiling, f"update_n_{f.name}")
-                ss = sses[i]
-                if ss > solubility_break_point:
-                    state.n[i] = self.update_nucleation(state.n[i], nucleation_rate_list[i], time_step)
-                    state.n[i] = self.update_growth(state.n[i], gds[i], time_step)
-                elif ss < solubility_break_point:
-                    state.n[i] = self.update_dissolution(state.n[i], gds[i], time_step)
-                self.make_profiling(profiling, f"update_n_{f.name}")
             vfs_new = np.array([f.volume_fraction(n) for f, n in zip(forms, state.n)])
 
-            self.make_profiling(profiling, "update_concentration")
             mass_diffs = (vfs_new - vfs) * densities
             state.concentration = self.update_concentration(state.concentration, mass_diffs, time_step)
             vfs = vfs_new
-            self.make_profiling(profiling, "update_concentration")
 
             state.time += time_step
 

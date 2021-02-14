@@ -8,7 +8,7 @@ class OutputSpec:
     Base class for describing how the solver should make the output after computation
     """
 
-    def should_update_output(self, state: State, end_time: float) -> bool:
+    def should_update_output(self, state: State, end_time: float, is_initial=False) -> bool:
         pass
 
     def update_output(self, state: State):
@@ -24,13 +24,16 @@ class OutputSpec:
 
 
 class OutputAllSpec(OutputSpec):
-    def __init__(self):
+    def __init__(self, include_initial=False):
+        self.include_initial = include_initial
         self.outputs = []
 
     def update_output(self, state: State):
         self.outputs.append(state)
 
-    def should_update_output(self, state: State, end_time: float) -> bool:
+    def should_update_output(self, state: State, end_time: float, is_initial=False) -> bool:
+        if not self.include_initial and is_initial:
+            return False
         return True
 
     def get_outputs(self) -> List[State]:
@@ -41,7 +44,7 @@ class OutputLastSpec(OutputSpec):
     def __init__(self):
         self.output = None
 
-    def should_update_output(self, state: State, end_time: float) -> bool:
+    def should_update_output(self, state: State, end_time: float, is_initial=False) -> bool:
         return end_time == state.time
 
     def update_output(self, state: State):
@@ -67,7 +70,7 @@ class OutputIntervalSpec(OutputSpec):
         self.outputs = []
         self.next_time = None
 
-    def should_update_output(self, state: State, end_time: float) -> bool:
+    def should_update_output(self, state: State, end_time: float, is_initial=False) -> bool:
         return self.next_time is None or state.time >= self.next_time or (self.include_last and end_time == state.time)
 
     def update_output(self, state: State):
@@ -86,7 +89,7 @@ class OutputAtSpec(OutputSpec):
     def update_output(self, state: State):
         raise NotImplementedError()
 
-    def should_update_output(self, state: State, end_time: float) -> bool:
+    def should_update_output(self, state: State, end_time: float, is_initial=False) -> bool:
         raise NotImplementedError()
 
     def get_outputs(self) -> List[State]:

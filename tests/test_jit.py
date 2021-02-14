@@ -7,6 +7,7 @@ from crm.base.system_spec import FormSpec
 from crm.utils.jit import volume_average_size_jit, binary_agglomeration_jit, compress_jit, volume_fraction_jit, \
     binary_breakage_jit, binary_agglomeration_multithread
 from crm.presets.hypothetical import Hypothetical1D, Hypothetical2D
+from crm.utils.statistics import weighted_quantile
 
 
 def test_volume_average_size_jit():
@@ -83,6 +84,7 @@ def test_agglomeration_multithread():
     print(f"n rows in B: {B.shape[0]}")
 
 
+@pytest.mark.benchmark
 @pytest.mark.parametrize("system_spec_class", [Hypothetical1D, Hypothetical2D])
 @pytest.mark.parametrize("nrows", [100, 1000])
 @pytest.mark.parametrize("compress", [True, False], ids=["compress", "no_compress"])
@@ -151,6 +153,7 @@ def test_agglomeration_ignore_particles():
     assert D.size == n.shape[0]
 
 
+@pytest.mark.benchmark
 @pytest.mark.parametrize("nrows", [100, 1000, 10000, 100000])
 @pytest.mark.parametrize("ndim", [1, 2, 3])
 @pytest.mark.parametrize("scale", [25e-6, 100e-6], ids=["high", "low"])
@@ -177,6 +180,13 @@ def test_compression_jit(nrows, ndim, scale, benchmark):
     original_volume = volume_fraction_jit(n, power, shape_factor)
     result_volume = volume_fraction_jit(result, power, shape_factor)
     assert np.isclose(original_volume, result_volume)
+    assert np.isclose(result[:, -1].sum(), n[:, -1].sum())
+
+    for i in reversed(range(ndim)):
+        for q in [0.1, 0.5, 0.9]:
+            original_q = weighted_quantile(n[:, i], q, n[:, -1])
+            result_q = weighted_quantile(result[:, i], q, result[:, -1])
+            assert np.isclose(original_q, result_q, atol=5e-6), f"dim {i} q {q} does not match."
 
     print(f"compressed {nrows} to {result.shape[0]}")
 
@@ -209,6 +219,7 @@ KERNEL_LIST = [
 ]
 
 
+@pytest.mark.benchmark
 @pytest.mark.parametrize("kernels", KERNEL_LIST, ids=["kernel_1", "kernel_2", "kernel_3"])
 @pytest.mark.parametrize("system_spec_class", [Hypothetical1D, Hypothetical2D])
 @pytest.mark.parametrize("nrows", [100, 1000])

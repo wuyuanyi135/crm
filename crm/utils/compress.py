@@ -9,7 +9,7 @@ import numpy_indexed as npi
 
 from crm.base.state import State
 from crm.base.system_spec import FormSpec
-from crm.utils.jit import partition_equivalent_rows_jit
+from crm.utils.jit import compress_jit
 
 import numba.typed
 
@@ -27,11 +27,24 @@ class Compressor:
 
 
 class BinningCompressor(Compressor):
-    def __init__(self, grid_interval=1e-6, minimum_row=1, jit=False):
+    def __init__(self, grid_interval=1e-6, minimum_row=1, jit=True):
         super().__init__()
         self.minimum_row = minimum_row
         self.grid_interval = grid_interval
         self.jit = jit
+        if jit:
+            self.compress = self.compress_jit
+
+    def compress_jit(self, state: State, inplace=False) -> State:
+        if not inplace:
+            state = state.copy()
+
+        for i, (n, form) in enumerate(zip(state.n, state.system_spec.forms)):
+            if n.size <= self.minimum_row:
+                continue
+
+            state.n[i] = compress_jit(n, form.volume_fraction_powers, form.shape_factor, self.grid_interval)
+        return state
 
     def compress(self, state: State, inplace=False) -> State:
         # compute the sample grid
@@ -57,15 +70,10 @@ class BinningCompressor(Compressor):
         return state
 
     def partitions_to_equivalent_rows(self, partitions: List[np.ndarray], form: FormSpec) -> np.ndarray:
-        if self.jit:
-            partitions = numba.typed.List(partitions)
-            eq_rows = partition_equivalent_rows_jit(partitions, form.volume_fraction_powers, form.shape_factor)
-            return np.vstack(eq_rows)
-        else:
-            rows = []
-            for p in partitions:
-                if p.size == 0:
-                    continue
-                rows.append(form.volume_average_size(p))
-            eq_rows = np.vstack(rows)
-            return eq_rows
+        rows = []
+        for p in partitions:
+            if p.size == 0:
+                continue
+            rows.append(form.volume_average_size(p))
+        eq_rows = np.vstack(rows)
+        return eq_rows

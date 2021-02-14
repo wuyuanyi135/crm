@@ -4,6 +4,7 @@ Hypothetical crystallization kinetics for testing
 import numpy as np
 
 from crm.base.system_spec import SystemSpec, FormSpec, ParametricFormSpec
+
 __all__ = [
     "Hypothetical1D",
     "HypotheticalPolymorphic1D",
@@ -12,6 +13,7 @@ __all__ = [
     "HypotheticalPolymorphicEqualGrowth2D",
     "HypotheticalPolymorphic2D"
 ]
+
 
 class Hypothetical1D(SystemSpec):
     forms = [ParametricFormSpec(
@@ -67,6 +69,35 @@ class HypotheticalPolymorphic1D(SystemSpec):
             shape_factor=0.48,
         )
     ]
+
+
+class HypotheticalAgg1D(Hypothetical1D):
+
+    def __init__(self, name=None, min_count=None, compression_interval=None):
+        super().__init__(name)
+        self.forms[0].agg_kernel = 4.86e12
+        if min_count is not None:
+            self.forms[0].min_count = min_count
+        if compression_interval is not None:
+            self.forms[0].compression_interval = compression_interval
+
+
+class HypotheticalBrk1D(Hypothetical1D):
+    def __init__(self, name=None, min_count=None, compression_interval=None):
+        super().__init__(name)
+        self.forms[0].brk_kernel = np.array([
+            (0.5, 4.86e15)
+        ])
+        if min_count is not None:
+            self.forms[0].min_count = min_count
+        if compression_interval is not None:
+            self.forms[0].compression_interval = compression_interval
+
+
+class HypotheticalAggBrk1D(HypotheticalAgg1D, HypotheticalBrk1D):
+
+    def __init__(self, name=None, min_count=None, compression_interval=None):
+        super().__init__(name, min_count, compression_interval)
 
 
 class HypotheticalEqualGrowth2D(SystemSpec):
@@ -150,6 +181,7 @@ class HypotheticalPolymorphicEqualGrowth2D(SystemSpec):
             volume_fraction_powers=np.array([2, 1])
         )
     ]
+
 
 class HypotheticalPolymorphic2D(SystemSpec):
     forms = [

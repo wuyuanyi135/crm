@@ -1,6 +1,6 @@
 from crm.base.state import InletState
 from crm.utils.report_generator import ReportGenerator, ReportOptions
-from solvers.mcsolver import MCSolver
+from crm.solvers.mcsolver import MCSolver
 from crm.base.input import ConstantTemperatureInput, LinearTemperatureInput, ContinuousInput
 from tests.get_data import get_sample_data
 import crm.presets.hypothetical as presets
