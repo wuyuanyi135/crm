@@ -1,4 +1,4 @@
-from typing import Union, Tuple, List
+from typing import Union, Tuple, List, Optional
 
 from crm.base.state import State, InletState
 
@@ -9,9 +9,10 @@ class Input:
     """
 
     def transform(self, state: State) -> State:
+        # Changing the n is not allowed as input. It will break the conservation laws.
         return state
 
-    def inlet(self, state: State) -> Union[Tuple[State, float], None]:
+    def inlet(self, state: State) -> Optional[InletState]:
         """
         Inlet specification. The conditions affected by the time step will be specified here.
         :param state:

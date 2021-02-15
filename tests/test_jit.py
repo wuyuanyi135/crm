@@ -8,6 +8,7 @@ from crm.utils.jit import volume_average_size_jit, binary_agglomeration_jit, com
     binary_breakage_jit, binary_agglomeration_multithread
 from crm.presets.hypothetical import Hypothetical1D, Hypothetical2D
 from crm.utils.statistics import weighted_quantile
+from crm.utils.csd import create_normal_distribution_n
 
 
 def test_volume_average_size_jit():
@@ -22,13 +23,16 @@ def test_volume_average_size_jit():
     assert np.isclose(form.volume_fraction(va_row), form.volume_fraction(n_unity))
 
 
-def assert_volume_equal_after_agglomeration(n, B, D, form: FormSpec):
-    n = n.copy()
-    n[:, -1] = D
-    v1 = form.volume_fraction(n)
-    v2 = form.volume_fraction(B)
+def assert_volume_equal(n, B, D, form: FormSpec):
+    if B is not None:
+        n = n.copy()
+        n[:, -1] = D
+        v1 = form.volume_fraction(n)
+        v2 = form.volume_fraction(B)
 
-    assert np.isclose(v1, v2)
+        assert np.isclose(v1, v2)
+    else:
+        assert D is None
 
 
 def test_agglomeration_jit_1d():
@@ -39,18 +43,18 @@ def test_agglomeration_jit_1d():
     crystallizer_volume = 150e-6  # mL
     alpha = 4.86e12
 
-    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor, crystallizer_volume)
-    assert_volume_equal_after_agglomeration(n, B, D, form)
+    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor, crystallizer_volume, minimum_count=0)
+    assert_volume_equal(n, B, D, form)
 
     n = np.array([(1e-6, 10), (2e-6, 10), (6e-6, 52)])
 
-    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor, crystallizer_volume)
-    assert_volume_equal_after_agglomeration(n, B, D, form)
+    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor, crystallizer_volume, minimum_count=0)
+    assert_volume_equal(n, B, D, form)
 
     n = np.array([(1e-6, 10), (2e-6, 10), (6e-6, 52), (8e-6, 42)])
 
-    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor, crystallizer_volume)
-    assert_volume_equal_after_agglomeration(n, B, D, form)
+    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor, crystallizer_volume, minimum_count=0)
+    assert_volume_equal(n, B, D, form)
 
 
 def test_agglomeration_jit_2d():
@@ -61,8 +65,8 @@ def test_agglomeration_jit_2d():
 
     n = np.array([(1e-6, 1e-6, 10), (2e-6, 1e-6, 10), (6e-6, 1e-6, 52), (8e-6, 4e-6, 42)])
 
-    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor, crystallizer_volume)
-    assert_volume_equal_after_agglomeration(n, B, D, form)
+    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor, crystallizer_volume, minimum_count=0)
+    assert_volume_equal(n, B, D, form)
 
 
 def test_agglomeration_multithread():
@@ -80,7 +84,7 @@ def test_agglomeration_multithread():
 
     B, D = binary_agglomeration_multithread(n, alpha, form.volume_fraction_powers, form.shape_factor,
                                             crystallizer_volume)
-    assert_volume_equal_after_agglomeration(n, B, D, form)
+    assert_volume_equal(n, B, D, form)
     print(f"n rows in B: {B.shape[0]}")
 
 
@@ -113,7 +117,7 @@ def test_benchmark_agglomeration(nrows, system_spec_class, compress, mt, benchma
     else:
         B, D = benchmark(binary_agglomeration_jit, n, alpha, form.volume_fraction_powers, form.shape_factor,
                          crystallizer_volume, compression_interval=compression_interval)
-    assert_volume_equal_after_agglomeration(n, B, D, form)
+    assert_volume_equal(n, B, D, form)
     print(f"n rows in B: {B.shape[0]}")
 
 
@@ -135,8 +139,7 @@ def test_agglomeration_ignore_particles():
     B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor,
                                     crystallizer_volume, minimum_count=minimum_count)
 
-    assert np.all(D == 0)
-    assert B.size == 0
+    assert B is None and D is None
 
     n = np.array([
         (1e-6, 10),
@@ -147,7 +150,7 @@ def test_agglomeration_ignore_particles():
     ])
     B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor,
                                     crystallizer_volume, minimum_count=minimum_count)
-    assert_volume_equal_after_agglomeration(n, B, D, form)
+    assert_volume_equal(n, B, D, form)
 
     assert B.shape[0] == 3 * 2
     assert D.size == n.shape[0]
@@ -158,6 +161,7 @@ def test_agglomeration_ignore_particles():
 @pytest.mark.parametrize("ndim", [1, 2, 3])
 @pytest.mark.parametrize("scale", [25e-6, 100e-6], ids=["high", "low"])
 def test_compression_jit(nrows, ndim, scale, benchmark):
+    np.random
     scale_count = 1e8
     loc = scale * 2
     sizes = np.random.normal(loc=loc, scale=scale, size=(nrows, ndim))
@@ -200,13 +204,14 @@ def test_breakage():
     kernels = np.array([(0.5, 4.86e15)])
     B, D = binary_breakage_jit(n, kernels, form.volume_fraction_powers, form.shape_factor, crystallizer_volume,
                                minimum_count=0)
-    assert_volume_equal_after_agglomeration(n, B, D, form)
+    assert_volume_equal(n, B, D, form)
 
     # test below minimum count
     B, D = binary_breakage_jit(n, kernels, form.volume_fraction_powers, form.shape_factor, crystallizer_volume,
                                minimum_count=1e8)
-    assert D.size == 1 and D[0] == 0.
-    assert B.size == 0
+    if B is not None:
+        assert D.size == 1 and D[0] == 0.
+        assert B.size == 0
 
 
 KERNEL_55 = np.array([(0.5, 4.86e15)])
@@ -230,14 +235,13 @@ def test_benchmark_breakage(kernels, nrows, system_spec_class, compress, benchma
     dim = form.dimensionality
     crystallizer_volume = 150e-6  # mL
 
-    sizes = np.random.normal(loc=100e-6, scale=20e-6, size=(nrows, dim))
-    sizes = np.clip(sizes, 1e-6, np.inf)
-    cnts = np.random.random((nrows, 1)) * 1e8
-    n = np.hstack((sizes, cnts))
+    n = create_normal_distribution_n(loc=[100e-6] * dim, scale=[20e-6] * dim, count_density=1e8, grid_count=nrows)
 
     compression_interval = 1e-6 if compress else 0.
 
-    B, D = benchmark(binary_breakage_jit, n, kernels, form.volume_fraction_powers, form.shape_factor,
-                     crystallizer_volume, compression_interval=compression_interval)
-    assert_volume_equal_after_agglomeration(n, B, D, form)
-    print(f"n rows in B: {B.shape[0]}")
+    # B, D = benchmark(binary_breakage_jit, n, kernels, form.volume_fraction_powers, form.shape_factor,
+    #                  crystallizer_volume, compression_interval=compression_interval)
+    B, D = binary_breakage_jit(n, kernels, form.volume_fraction_powers, form.shape_factor,
+                               crystallizer_volume, compression_interval=compression_interval)
+    assert_volume_equal(n, B, D, form)
+    print(f"n rows in B: {B.shape[0] if B is not None else 0}")

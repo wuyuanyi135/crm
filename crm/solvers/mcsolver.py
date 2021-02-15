@@ -3,7 +3,7 @@ from typing import Type, Literal, Optional
 
 import numpy as np
 
-from crm.base.solver import Solver, SolverOptions, SolverMeta
+from crm.base.solver import Solver, SolverOptions, SolverMeta, TimeStepException
 from crm.base.state import State
 from crm.base.system_spec import SystemSpec
 from crm.utils.compress import Compressor
@@ -94,11 +94,18 @@ class MCSolver(Solver):
     def post_solver_step(self, state: State, **kwargs):
         pass
 
-    def get_time_step(self, state: State):
+    def get_time_step(self, state: State, gd, nuc, ss):
         if self.options.time_step_mode == "fixed":
             return self.options.time_step
         else:
             raise NotImplementedError()
+
+    def assert_time_step_agg_brk(self, state, time_step, B_agg, D_agg, B_brk, D_brk):
+        for n, Da, Db in zip(state.n, D_agg, D_brk):
+            if Da is not None and np.any(n[:, -1] - Da * time_step < 0):
+                raise TimeStepException()
+            if Db is not None and np.any(n[:, -1] - Db * time_step < 0):
+                raise TimeStepException()
 
     def update_concentration(self, concentration: float, mass_diffs: np.ndarray, time_step: float) -> float:
         return concentration - mass_diffs.sum() * time_step

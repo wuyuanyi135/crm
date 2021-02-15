@@ -82,7 +82,7 @@ class FormSpec:
         """
         raise NotImplementedError()
 
-    def agglomeration(self, state: State = None, polymorph_idx: int = None) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+    def agglomeration(self, state: State = None, polymorph_idx: int = None) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
         """
         Agglomeration parameters.
         :param state:
@@ -90,15 +90,15 @@ class FormSpec:
         number of rows and same columns as D. The volume of B and D should equal.
         """
 
-        return None
+        return None, None
 
-    def breakage(self, state: State = None, polymorph_idx: int = None) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+    def breakage(self, state: State = None, polymorph_idx: int = None) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
         """
         Breakage parameters.
         :param state:
         :return: see agglomeration return
         """
-        return None
+        return None, None
 
     def volume_fraction(self, n: np.ndarray):
         """
@@ -244,18 +244,18 @@ class ParametricFormSpec(FormSpec):
             self.volume_fraction_powers = volume_fraction_powers
         self.density = density
 
-    def agglomeration(self, state: State = None, polymorph_idx: int = None) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+    def agglomeration(self, state: State = None, polymorph_idx: int = None) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
         if self.agg_kernel is None:
-            return None
+            return None, None
         n = state.n[polymorph_idx]
         B, D = binary_agglomeration_jit(n, self.agg_kernel, self.volume_fraction_powers, self.shape_factor,
                                         state.volume,
                                         compression_interval=self.compression_interval, minimum_count=self.min_count)
         return B, D
 
-    def breakage(self, state: State = None, polymorph_idx: int = None) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+    def breakage(self, state: State = None, polymorph_idx: int = None) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
         if self.brk_kernel is None:
-            return None
+            return None, None
         n = state.n[polymorph_idx]
         B, D = binary_breakage_jit(n, self.brk_kernel, self.volume_fraction_powers, self.shape_factor, state.volume,
                                    compression_interval=self.compression_interval, minimum_count=self.min_count)

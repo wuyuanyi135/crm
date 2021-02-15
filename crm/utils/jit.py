@@ -78,6 +78,7 @@ def volume_average_size_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, s
 
         return ret
 
+
 @jit(nopython=True, cache=True, nogil=True)
 def binary_agglomeration_jit(
         n: np.ndarray,
@@ -102,9 +103,11 @@ def binary_agglomeration_jit(
     included_rows = n[:, -1] >= minimum_count
     n_original = n
     n = n[included_rows]
-
     nrows = n.shape[0]
     ncols = n.shape[1]
+    if nrows == 0:
+        return None, None
+
     crystallizer_volume_square = crystallizer_volume ** 2
     combination_index = np.triu_indices(nrows, 0)  # combination can self-intersect!
 
@@ -247,7 +250,7 @@ def compress_jit(n, volume_fraction_powers: np.ndarray, shape_factor: float, int
     count_grid = np.zeros((np.prod(cnts),))
     sum_non_adjust_dim_grid = np.zeros((np.prod(cnts), ndims - 1))
 
-    n_non_adjust_dim = n[:, 1:-1] # TODO: do not support adjust_dim
+    n_non_adjust_dim = n[:, 1:-1]  # TODO: do not support adjust_dim
 
     for i, (row, non_adjust_row) in enumerate(zip(n, n_non_adjust_dim)):
         sizes = row[:-1]
@@ -295,7 +298,7 @@ def compress_jit(n, volume_fraction_powers: np.ndarray, shape_factor: float, int
         return ret
 
 
-@jit(nopython=True, cache=True, nogil=True)
+@jit(nopython=True, cache=True)
 def binary_breakage_jit(
         n: np.ndarray,
         kernels: np.ndarray,
@@ -318,10 +321,13 @@ def binary_breakage_jit(
     included_rows = n[:, -1] >= minimum_count
     n_original = n
     n = n[included_rows]
-
     nrows = n.shape[0]
-    nkernels = kernels.shape[0]
     ncols = n.shape[1]
+
+    if nrows == 0:
+        return None, None
+
+    nkernels = kernels.shape[0]
     crystallizer_volume_square = crystallizer_volume ** 2
 
     D = np.zeros((nrows,))
