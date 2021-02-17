@@ -27,9 +27,7 @@ class FormSpec:
         if self.jit:
             self.particle_volume = lambda n: particle_volume_jit(n, self.volume_fraction_powers, self.shape_factor)
             self.volume_fraction = lambda n: volume_fraction_jit(n, self.volume_fraction_powers, self.shape_factor)
-            self.volume_average_size = lambda n: volume_average_size_jit(n, self.volume_fraction_powers,
-
-                                                                         self.shape_factor)
+            self.volume_average_size = lambda n: volume_average_size_jit(n, self.volume_fraction_powers,self.shape_factor)
 
     @staticmethod
     def supersaturation(solubility: float, concentration: float):
@@ -245,18 +243,19 @@ class ParametricFormSpec(FormSpec):
         self.density = density
 
     def agglomeration(self, state: State = None, polymorph_idx: int = None) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
-        if self.agg_kernel is None:
-            return None, None
         n = state.n[polymorph_idx]
+        if self.agg_kernel is None or n.size == 0:
+            return None, None
+
         B, D = binary_agglomeration_jit(n, self.agg_kernel, self.volume_fraction_powers, self.shape_factor,
                                         state.volume,
                                         compression_interval=self.compression_interval, minimum_count=self.min_count)
         return B, D
 
     def breakage(self, state: State = None, polymorph_idx: int = None) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
-        if self.brk_kernel is None:
-            return None, None
         n = state.n[polymorph_idx]
+        if self.brk_kernel is None or n.size == 0:
+            return None, None
         B, D = binary_breakage_jit(n, self.brk_kernel, self.volume_fraction_powers, self.shape_factor, state.volume,
                                    compression_interval=self.compression_interval, minimum_count=self.min_count)
         return B, D

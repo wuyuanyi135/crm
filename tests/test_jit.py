@@ -161,7 +161,6 @@ def test_agglomeration_ignore_particles():
 @pytest.mark.parametrize("ndim", [1, 2, 3])
 @pytest.mark.parametrize("scale", [25e-6, 100e-6], ids=["high", "low"])
 def test_compression_jit(nrows, ndim, scale, benchmark):
-    np.random
     scale_count = 1e8
     loc = scale * 2
     sizes = np.random.normal(loc=loc, scale=scale, size=(nrows, ndim))

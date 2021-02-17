@@ -43,21 +43,6 @@ class MCSolver(Solver):
     def __init__(self, system_spec: SystemSpec, options: MCSolverOptions = None):
         super().__init__(system_spec, options)
 
-    def update_agglomeration(self, n: np.ndarray, B, D, time_step) -> np.ndarray:
-        if D.size == 0:
-            return n
-        n[:, -1] -= D * time_step
-        new_rows = B * time_step
-        return np.vstack((n, new_rows))
-
-    def update_breakage(self, n: np.ndarray, B, D, time_step) -> np.ndarray:
-        # TODO: in this step if after D some counts become negative, the timestep should be reduced.
-        if D.size == 0:
-            return n
-        n[:, -1] -= D * time_step
-        new_rows = B * time_step
-        return np.vstack((n, new_rows))
-
     def get_state_type(self) -> Type[State]:
         return MCState
 
@@ -85,14 +70,14 @@ class MCSolver(Solver):
         return n
 
     def post_apply_continuous_input(self, state, **kwargs):
-        compressor = self.options.compressor
-        if compressor is not None:
-            self.make_profiling(kwargs["profiling"], "cont_compress")
-            compressor.compress(state, inplace=True)
-            self.make_profiling(kwargs["profiling"], "cont_compress")
+        pass
 
     def post_solver_step(self, state: State, **kwargs):
-        pass
+        compressor = self.options.compressor
+        if compressor is not None:
+            self.make_profiling(kwargs["profiling"], "compress")
+            compressor.compress(state, inplace=True)
+            self.make_profiling(kwargs["profiling"], "compress")
 
     def get_time_step(self, state: State, gd, nuc, ss):
         if self.options.time_step_mode == "fixed":

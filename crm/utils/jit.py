@@ -28,9 +28,32 @@ def particle_volume_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, shape
 def volume_fraction_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, shape_factor: float):
     return particle_volume_jit(n, volume_fraction_powers, shape_factor).sum(axis=0)
 
-
 @jit(nopython=True, cache=True, nogil=True)
 def volume_average_size_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, shape_factor: float, mode: float = 0.):
+    """
+    Forward to _volume_average_size_jit. Only return the average size
+    :param n:
+    :param volume_fraction_powers:
+    :param shape_factor:
+    :param mode:
+    :return:
+    """
+    return _volume_average_size_jit(n, volume_fraction_powers, shape_factor, mode)[0]
+
+@jit(nopython=True, cache=True, nogil=True)
+def volume_average_size_and_volume_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, shape_factor: float, mode: float = 0.):
+    """
+    Forward to _volume_average_size_jit. Get both average size and the volume.
+    :param n:
+    :param volume_fraction_powers:
+    :param shape_factor:
+    :param mode:
+    :return:
+    """
+    return _volume_average_size_jit(n, volume_fraction_powers, shape_factor, mode)
+
+@jit(nopython=True, cache=True, nogil=True)
+def _volume_average_size_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, shape_factor: float, mode: float = 0.):
     """
 
     :param n:
@@ -42,7 +65,7 @@ def volume_average_size_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, s
     nrows = n.shape[0]
     ncols = n.shape[1]
     if nrows == 0:
-        return np.zeros((n.shape[1],))
+        return np.zeros((n.shape[1],)), 0
     ret = np.empty((ncols,))
 
     if mode == 0.:
@@ -59,7 +82,8 @@ def volume_average_size_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, s
         # one dimensional
         ret[0] = (particle_average_volume / shape_factor) ** (1 / volume_fraction_powers[0])
         ret[1] = count
-        return ret
+
+        return ret, particle_average_volume
     else:
         # multi-dimensional N
         non_first_dim_mean_sizes = (n[:, 1:-1] * np.expand_dims(n[:, -1], 1)).sum(axis=0) / n[:, -1].sum()
@@ -76,7 +100,7 @@ def volume_average_size_jit(n: np.ndarray, volume_fraction_powers: np.ndarray, s
         ret[1:-1] = non_first_dim_prod
         ret[-1] = count
 
-        return ret
+        return ret, particle_average_volume
 
 
 @jit(nopython=True, cache=True, nogil=True)
@@ -151,14 +175,17 @@ def binary_agglomeration_internal(
     for i, row_idx in enumerate(zip(*combination_index)):
         agglomeration_parent_rows = combination_table[i]
 
-        reduced = alpha * np.prod(agglomeration_parent_rows[:, -1]) * crystallizer_volume_square
+        B[i, :], new_particle_volume = volume_average_size_and_volume_jit(agglomeration_parent_rows, volume_fraction_powers, shape_factor, mode=-1.)
+
+        # alpha's unit is m^-3 particle * s^-1. The product particle volume is used to convert the unit.
+        reduced = alpha * np.prod(agglomeration_parent_rows[:, -1]) * crystallizer_volume_square * new_particle_volume
+
+        B[i, -1] = reduced
 
         # this for loop should just run twice for binary agglomeration.
         for r in row_idx:
             D[r] += reduced
 
-        B[i, :] = volume_average_size_jit(agglomeration_parent_rows, volume_fraction_powers, shape_factor, mode=-1.)
-        B[i, -1] = reduced
     return B, D
 
 

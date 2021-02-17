@@ -121,19 +121,6 @@ class Solver:
     def update_concentration(self, concentration: float, mass_diffs: np.ndarray, time_step: float) -> float:
         raise NotImplementedError()
 
-    def update_agglomeration(self, n: np.ndarray, B, D, time_step: float) -> np.ndarray:
-        """
-        Update n with given B and D. If agglomeration is ignored, return the n itself.
-        :param n:
-        :param B:
-        :param D:
-        :return:
-        """
-        return n
-
-    def update_breakage(self, n: np.ndarray, B, D, time_step: float) -> np.ndarray:
-        return n
-
     def update_with_D(self, n, time_step, D: Optional[np.ndarray]) -> np.ndarray:
         if D is None:
             return n
