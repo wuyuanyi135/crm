@@ -10,6 +10,7 @@ from crm.base.input import Input
 from crm.base.output_spec import OutputSpec, OutputAllSpec
 from crm.base.state import State, InletState
 from crm.base.system_spec import SystemSpec
+from crm.utils.compress import Compressor
 from crm.utils.git import get_commit_hash
 
 process = psutil.Process(os.getpid())
@@ -89,6 +90,7 @@ class Solver:
     ####################
     # Event callback
     ####################
+
     def post_apply_continuous_input(self, state, **kwargs):
         pass
 
@@ -234,10 +236,6 @@ class Solver:
         gd: List[np.ndarray] = [None] * len(forms)
         nuc: List[np.ndarray] = [None] * len(forms)
         ss: List[float] = [None] * len(forms)
-        B_agg: List[np.ndarray] = [None] * len(forms)
-        D_agg: List[np.ndarray] = [None] * len(forms)
-        B_brk: List[np.ndarray] = [None] * len(forms)
-        D_brk: List[np.ndarray] = [None] * len(forms)
 
         B_cont = None
         D_cont = None
@@ -312,18 +310,11 @@ class Solver:
                 self.post_apply_continuous_input(state, profiling=profiling)
 
             # Compute agg and brk kinetics (BD)
-            for i, f in enumerate(forms):
-                self.make_profiling(profiling, f"kin_{f.name}_agg")
-                B, D = f.agglomeration(state, i)
-                if B is not None:
-                    B_agg[i], D_agg[i] = B, D
-                self.make_profiling(profiling, f"kin_{f.name}_agg")
+            # The common agg and brk kinetics compute the change rate of number density, not count. To convert the
+            # number density to count, we need fit the n into a grid so that the delta L or delta V of the grid can be
+            # inserted in the equation.
 
-                self.make_profiling(profiling, f"kin_{f.name}_brk", clear=True)
-                B, D = f.breakage(state, i)
-                if B is not None:
-                    B_brk[i], B_brk[i] = B, D
-                self.make_profiling(profiling, f"kin_{f.name}_brk")
+            B_agg, D_agg, B_brk, D_brk = self.compute_agg_brk_kinetics(state)
 
             # Verify the time step is ok for agg and brk
             self.assert_time_step_agg_brk(state, time_step, B_agg, D_agg, B_brk, D_brk)
@@ -350,3 +341,30 @@ class Solver:
             self.make_profiling(profiling, "ram")
 
         return output_spec.get_outputs()
+
+    def compute_agg_brk_kinetics(self, state, profiling=None):
+        """
+        Return the BD of agg and brk. Note that this function will also modify the state. E.g., compression before agg.
+        :param state:
+        :param profiling:
+        :return:
+        """
+        forms = self.system_spec.forms
+        B_agg: List[np.ndarray] = [None] * len(forms)
+        D_agg: List[np.ndarray] = [None] * len(forms)
+        B_brk: List[np.ndarray] = [None] * len(forms)
+        D_brk: List[np.ndarray] = [None] * len(forms)
+
+        for i, f in enumerate(forms):
+            self.make_profiling(profiling, f"kin_{f.name}_agg")
+            B, D = f.agglomeration(state, i)
+            if B is not None:
+                B_agg[i], D_agg[i] = B, D
+            self.make_profiling(profiling, f"kin_{f.name}_agg")
+
+            self.make_profiling(profiling, f"kin_{f.name}_brk")
+            B, D = f.breakage(state, i)
+            if B is not None:
+                B_brk[i], D_brk[i] = B, D
+            self.make_profiling(profiling, f"kin_{f.name}_brk")
+        return B_agg, D_agg, B_brk, D_brk

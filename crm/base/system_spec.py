@@ -27,7 +27,8 @@ class FormSpec:
         if self.jit:
             self.particle_volume = lambda n: particle_volume_jit(n, self.volume_fraction_powers, self.shape_factor)
             self.volume_fraction = lambda n: volume_fraction_jit(n, self.volume_fraction_powers, self.shape_factor)
-            self.volume_average_size = lambda n: volume_average_size_jit(n, self.volume_fraction_powers,self.shape_factor)
+            self.volume_average_size = lambda n: volume_average_size_jit(n, self.volume_fraction_powers,
+                                                                         self.shape_factor)
 
     @staticmethod
     def supersaturation(solubility: float, concentration: float):
@@ -80,7 +81,8 @@ class FormSpec:
         """
         raise NotImplementedError()
 
-    def agglomeration(self, state: State = None, polymorph_idx: int = None) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    def agglomeration(self, state: State = None, polymorph_idx: int = None) -> Tuple[
+        Optional[np.ndarray], Optional[np.ndarray]]:
         """
         Agglomeration parameters.
         :param state:
@@ -90,7 +92,8 @@ class FormSpec:
 
         return None, None
 
-    def breakage(self, state: State = None, polymorph_idx: int = None) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    def breakage(self, state: State = None, polymorph_idx: int = None) -> Tuple[
+        Optional[np.ndarray], Optional[np.ndarray]]:
         """
         Breakage parameters.
         :param state:
@@ -242,22 +245,23 @@ class ParametricFormSpec(FormSpec):
             self.volume_fraction_powers = volume_fraction_powers
         self.density = density
 
-    def agglomeration(self, state: State = None, polymorph_idx: int = None) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    def agglomeration(self, state: State = None, polymorph_idx: int = None) -> Tuple[
+        Optional[np.ndarray], Optional[np.ndarray]]:
         n = state.n[polymorph_idx]
         if self.agg_kernel is None or n.size == 0:
             return None, None
 
         B, D = binary_agglomeration_jit(n, self.agg_kernel, self.volume_fraction_powers, self.shape_factor,
-                                        state.volume,
-                                        compression_interval=self.compression_interval, minimum_count=self.min_count)
+                                        state.volume, minimum_count=self.min_count, compress=False)
         return B, D
 
-    def breakage(self, state: State = None, polymorph_idx: int = None) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    def breakage(self, state: State = None, polymorph_idx: int = None) -> Tuple[
+        Optional[np.ndarray], Optional[np.ndarray]]:
         n = state.n[polymorph_idx]
         if self.brk_kernel is None or n.size == 0:
             return None, None
         B, D = binary_breakage_jit(n, self.brk_kernel, self.volume_fraction_powers, self.shape_factor, state.volume,
-                                   compression_interval=self.compression_interval, minimum_count=self.min_count)
+                                   minimum_count=self.min_count, compress=False)
         return B, D
 
     def solubility(self, state: State = None, polymorph_idx: int = None, t=None) -> float:
