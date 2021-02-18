@@ -252,7 +252,7 @@ class ParametricFormSpec(FormSpec):
             return None, None
 
         B, D = binary_agglomeration_jit(n, self.agg_kernel, self.volume_fraction_powers, self.shape_factor,
-                                        state.volume, minimum_count=self.min_count, compress=False)
+                                        state.volume, minimum_count=self.min_count, compression_interval=0.)
         return B, D
 
     def breakage(self, state: State = None, polymorph_idx: int = None) -> Tuple[
@@ -261,7 +261,7 @@ class ParametricFormSpec(FormSpec):
         if self.brk_kernel is None or n.size == 0:
             return None, None
         B, D = binary_breakage_jit(n, self.brk_kernel, self.volume_fraction_powers, self.shape_factor, state.volume,
-                                   minimum_count=self.min_count, compress=False)
+                                   minimum_count=self.min_count, compression_interval=0.)
         return B, D
 
     def solubility(self, state: State = None, polymorph_idx: int = None, t=None) -> float:

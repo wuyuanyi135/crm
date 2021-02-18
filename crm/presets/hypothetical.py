@@ -82,7 +82,7 @@ class HypotheticalAgg1D(Hypothetical1D):
 
     def __init__(self, name=None, min_count=None, compression_interval=None):
         super().__init__(name)
-        self.forms[0].agg_kernel = 4.86e12
+        self.forms[0].agg_kernel = 100
         if min_count is not None:
             self.forms[0].min_count = min_count
         if compression_interval is not None:
@@ -93,7 +93,7 @@ class HypotheticalBrk1D(Hypothetical1D):
     def __init__(self, name=None, min_count=None, compression_interval=None):
         super().__init__(name)
         self.forms[0].brk_kernel = np.array([
-            (0.5, 4.86e15)
+            (0.5, 100)
         ])
         if min_count is not None:
             self.forms[0].min_count = min_count
