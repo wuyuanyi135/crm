@@ -4,8 +4,10 @@ import pytest
 import numpy as np
 
 from crm.base.system_spec import FormSpec
-from crm.utils.jit import volume_average_size_jit, binary_agglomeration_jit, compress_jit, volume_fraction_jit, \
-    binary_breakage_jit, dL_to_dV
+from crm.jit.agglomeration import binary_agglomeration_jit
+from crm.jit.breakage import binary_breakage_jit
+from crm.jit.compress import compress_jit
+from crm.jit.csd import volume_average_size_jit, volume_fraction_jit, dL_to_dV
 from crm.presets.hypothetical import Hypothetical1D, Hypothetical2D
 from crm.utils.statistics import weighted_quantile
 from crm.utils.csd import create_normal_distribution_n

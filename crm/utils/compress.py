@@ -9,9 +9,7 @@ import numpy_indexed as npi
 
 from crm.base.state import State
 from crm.base.system_spec import FormSpec
-from crm.utils.jit import compress_jit
-
-import numba.typed
+from crm.jit.compress import compress_jit
 
 
 class Compressor:

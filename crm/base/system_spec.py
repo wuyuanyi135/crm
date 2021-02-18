@@ -4,8 +4,9 @@ from typing import List, TypeVar, Tuple, Optional
 import numpy as np
 
 from crm.base.state import State
-from crm.utils.jit import volume_fraction_jit, particle_volume_jit, volume_average_size_jit, binary_agglomeration_jit, \
-    binary_breakage_jit
+from crm.jit.agglomeration import binary_agglomeration_jit
+from crm.jit.breakage import binary_breakage_jit
+from crm.jit.csd import particle_volume_jit, volume_fraction_jit, volume_average_size_jit
 
 
 class FormSpec:
