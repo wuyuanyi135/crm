@@ -42,36 +42,29 @@ def test_agglomeration_jit_1d():
     form = system_spec.forms[0]
 
     n = np.array([(1e-6, 10), (2e-6, 10)])
-    crystallizer_volume = 150e-6  # mL
-    alpha = 100.
+    coef = 2e-14
 
-    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor, crystallizer_volume,
-                                    minimum_count=0)
+    B, D = binary_agglomeration_jit(n, form.volume_fraction_powers, form.shape_factor, coef, minimum_count=0)
     assert_volume_equal(n, B, D, form)
 
     n = np.array([(1e-6, 10), (2e-6, 10), (6e-6, 52)])
 
-    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor, crystallizer_volume,
-                                    minimum_count=0)
+    B, D = binary_agglomeration_jit(n, form.volume_fraction_powers, form.shape_factor, coef, minimum_count=0)
     assert_volume_equal(n, B, D, form)
 
     n = np.array([(1e-6, 10), (2e-6, 10), (6e-6, 52), (8e-6, 42)])
 
-    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor, crystallizer_volume,
-                                    minimum_count=0)
+    B, D = binary_agglomeration_jit(n, form.volume_fraction_powers, form.shape_factor, coef, minimum_count=0)
     assert_volume_equal(n, B, D, form)
 
 
 def test_agglomeration_jit_2d():
     system_spec = Hypothetical2D()
     form = system_spec.forms[0]
-    crystallizer_volume = 150e-6  # mL
-    alpha = 100.
-
+    coef = 2e-14
     n = np.array([(1e-6, 1e-6, 10), (2e-6, 1e-6, 10), (6e-6, 1e-6, 52), (8e-6, 4e-6, 42)])
 
-    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor, crystallizer_volume,
-                                    minimum_count=0)
+    B, D = binary_agglomeration_jit(n, form.volume_fraction_powers, form.shape_factor, coef, minimum_count=0)
     assert_volume_equal(n, B, D, form)
 
 
@@ -83,8 +76,7 @@ def test_benchmark_agglomeration(nrows, system_spec_class, compress, benchmark):
     system_spec = system_spec_class()
     form = system_spec.forms[0]
     dim = form.dimensionality
-    crystallizer_volume = 150e-6  # mL
-    alpha = 100.
+    coef = 2e-14
 
     loc = 100e-6
     scale = 20e-6
@@ -93,8 +85,9 @@ def test_benchmark_agglomeration(nrows, system_spec_class, compress, benchmark):
     cnts = np.random.random((nrows, 1)) * 1e8
     n = np.hstack((sizes, cnts))
     compression_interval = 1e-6 if compress else 0.
-    B, D = benchmark(binary_agglomeration_jit, n, alpha, form.volume_fraction_powers, form.shape_factor,
-                     crystallizer_volume, compression_interval=compression_interval)
+
+    B, D = benchmark(binary_agglomeration_jit, n, form.volume_fraction_powers, form.shape_factor, coef, minimum_count=0,
+                     compression_interval=compression_interval)
     assert_volume_equal(n, B, D, form)
     print(f"n rows in B: {B.shape[0]}")
 
@@ -104,8 +97,7 @@ def test_agglomeration_ignore_particles():
     system_spec = Hypothetical1D()
     form = system_spec.forms[0]
 
-    crystallizer_volume = 1
-    alpha = 100.
+    coef = 2e-14
     minimum_count = 1000.
 
     n = np.array([
@@ -114,8 +106,8 @@ def test_agglomeration_ignore_particles():
         (3e-6, 10),
     ])
 
-    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor,
-                                    crystallizer_volume, minimum_count=minimum_count)
+    B, D = binary_agglomeration_jit(n, form.volume_fraction_powers, form.shape_factor, coef,
+                                    minimum_count=minimum_count)
 
     assert B is None and D is None
 
@@ -126,8 +118,8 @@ def test_agglomeration_ignore_particles():
         (4e-6, 2000),
         (5e-6, 2000),
     ])
-    B, D = binary_agglomeration_jit(n, alpha, form.volume_fraction_powers, form.shape_factor,
-                                    crystallizer_volume, minimum_count=minimum_count)
+    B, D = binary_agglomeration_jit(n, form.volume_fraction_powers, form.shape_factor, coef,
+                                    minimum_count=minimum_count)
     assert_volume_equal(n, B, D, form)
 
     assert B.shape[0] == 3 * 2
@@ -167,7 +159,7 @@ def test_compression_jit(nrows, ndim, scale, benchmark):
         for q in [0.1, 0.5, 0.9]:
             original_q = weighted_quantile(n[:, i], q, n[:, -1])
             result_q = weighted_quantile(result[:, i], q, result[:, -1])
-            assert np.isclose(original_q, result_q, atol=5e-6), f"dim {i} q {q} does not match."
+            assert np.isclose(original_q, result_q, atol=8e-6), f"dim {i} q {q} does not match."
 
     print(f"compressed {nrows} to {result.shape[0]}")
 

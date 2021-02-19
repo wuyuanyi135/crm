@@ -15,7 +15,7 @@ def main():
     system_spec = getattr(presets, args.system_spec)()
 
     input_method = args.input_spec
-    concentration = system_spec.forms[0].solubility(60)
+    concentration = system_spec.forms[0].solubility(t=60)
     simulation_time = 1800
     timestep = 1
     temperature = 25

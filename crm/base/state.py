@@ -28,6 +28,9 @@ class State:
     # system volume in m3. Currently being used by agglomeration and breakage only.
     volume: float = None
 
+    # agitation power input (Watt)
+    agitation_power: float = 0
+
     # Extra information attached by the solver.
     extra: Union[None, Dict] = None
 
@@ -77,5 +80,3 @@ class InletState(State):
         state = InletState(rt=rt_new, temperature=temperature, concentration=concentration, n=n,
                            system_spec=self.system_spec)
         return state
-
-

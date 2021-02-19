@@ -1,10 +1,10 @@
 import functools
-from typing import List, TypeVar, Tuple, Optional
+from typing import List, Tuple, Optional
 
 import numpy as np
 
 from crm.base.state import State
-from crm.jit.agglomeration import binary_agglomeration_jit
+from crm.jit.agglomeration import BaseAgglomeration
 from crm.jit.breakage import binary_breakage_jit
 from crm.jit.csd import particle_volume_jit, volume_fraction_jit, volume_average_size_jit
 
@@ -12,10 +12,13 @@ from crm.jit.csd import particle_volume_jit, volume_fraction_jit, volume_average
 class FormSpec:
     name: str = "form"
 
-    density: float = 0
-
     shape_factor: float = 1
     volume_fraction_powers: np.ndarray = np.array([3.])
+
+    solid_density: float = 1.8e3
+    solvent_density: float = 1e3
+
+    solution_density_t_dep = 0.
 
     dimensionality: int = 1
     supersaturation_break_point = 0
@@ -44,6 +47,30 @@ class FormSpec:
         """
         sol = self.solubility(state, polymorph_idx)
         return self.supersaturation(sol, state.concentration)
+
+    def slurry_density(self, state=None, polymorph_idx=None) -> float:
+        """
+        Calculate the density of the mixture in kg/kg solvent (MT)
+        :param state:
+        :param polymorph_idx:
+        :return:
+        """
+        return self.solid_density / self.solvent_density * self.volume_fraction(state.n[polymorph_idx]) \
+               + self.solvent_density
+
+    def solution_density(self, state=None, polymorph_idx=None) -> float:
+        """
+        Calculate the solution density (kg total solution/m3 solution (~solvent))
+        :param state:
+        :param polymorph_idx:
+        :return:
+        """
+        # rho = (m_solute + m_solvent) / v_solution (approx v_solute)
+        # conc = m_solute / m_solvent
+        # Therefore, rho = m_solvent (conc + 1) / v_solvent
+        # m_solvent / v_solvent == solvent_density
+        # Therefore, rho = solvent_density * (conc + 1)
+        return self.solvent_density * (state.concentration + 1)
 
     def solubility(self, state: State = None, polymorph_idx: int = None, t=None) -> float:
         """
@@ -160,12 +187,11 @@ class FormSpec:
             ret = np.hstack([first_dim_size, non_first_dim_mean_sizes, count])
             return ret.reshape((1, -1))
 
-
 class ParametricFormSpec(FormSpec):
     def __init__(
             self,
             name: str,
-            density: float,
+            solid_density: float,
             solubility_coefs: np.ndarray,
             g_coefs: np.ndarray,
             g_powers: np.ndarray,
@@ -183,12 +209,11 @@ class ParametricFormSpec(FormSpec):
             d_eas: np.ndarray = None,
             pn_ea: float = 0,
             sn_ea: float = 0,
+            solvent_density: float = 1000.,
             shape_factor=None,
             volume_fraction_powers=None,
-            agg_kernel: Optional[float] = None,
+            agglomeration_model: BaseAgglomeration = None,
             brk_kernel: Optional[np.ndarray] = None,
-            min_count: float = 1000,
-            compression_interval: float = 0,
     ):
         """
         :param solubility_coefs: solubility in g solute/g solvent. solubility = poly[0] * T**0 + ...
@@ -210,15 +235,12 @@ class ParametricFormSpec(FormSpec):
         :param sn_ea: optional secondary nucleation activation energy
         :param shape_factor: optional shape factor
         :param volume_fraction_powers: optional volume fraction powers.
-        :param agg_kernel: agglomeration kernel in unit of m^3/s
         :param brk_kernel: breakage kernel. Rows as kernels. Columns as split ratio and probability.
         """
 
         super().__init__(name)
+        self.agglomeration_model = agglomeration_model
         self.brk_kernel = brk_kernel
-        self.compression_interval = compression_interval
-        self.min_count = min_count
-        self.agg_kernel = agg_kernel
         self.g_coefs = g_coefs
         self.dimensionality = g_coefs.shape[0]
 
@@ -244,17 +266,20 @@ class ParametricFormSpec(FormSpec):
         self.shape_factor = shape_factor
         if volume_fraction_powers is not None:
             self.volume_fraction_powers = volume_fraction_powers
-        self.density = density
 
-    def agglomeration(self, state: State = None, polymorph_idx: int = None) -> Tuple[
-        Optional[np.ndarray], Optional[np.ndarray]]:
+        self.solid_density = solid_density or self.solid_density
+        self.solvent_density = solvent_density or self.solvent_density
+
+    def agglomeration(
+            self,
+            state: State = None,
+            polymorph_idx: int = None
+    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
         n = state.n[polymorph_idx]
-        if self.agg_kernel is None or n.size == 0:
+        if self.agglomeration_model is None or n.size == 0:
             return None, None
 
-        B, D = binary_agglomeration_jit(n, self.agg_kernel, self.volume_fraction_powers, self.shape_factor,
-                                        state.volume, minimum_count=self.min_count, compression_interval=0.)
-        return B, D
+        return self.agglomeration_model.compute(state, polymorph_idx)
 
     def breakage(self, state: State = None, polymorph_idx: int = None) -> Tuple[
         Optional[np.ndarray], Optional[np.ndarray]]:

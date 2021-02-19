@@ -1,9 +1,18 @@
+import enum
+
 from numba import jit
 import numpy as np
 
 from crm.jit.compress import compress_jit
 from crm.jit.csd import volume_average_size_jit
 
+###############
+# Kernels
+###############
+class BrkKernelType(enum.IntEnum):
+    CONSTANT = 0
+    SMOLUCHOWSKI = 1
+    THOMPSON = 2
 
 @jit(nopython=True, cache=True)
 def binary_breakage_jit(

@@ -14,6 +14,8 @@ __all__ = [
     "HypotheticalPolymorphic2D"
 ]
 
+from crm.jit.agglomeration import ConstantAgglomeration
+
 
 class Hypothetical1D(SystemSpec):
     def __init__(self, name=None):
@@ -21,7 +23,7 @@ class Hypothetical1D(SystemSpec):
 
         self.forms = [ParametricFormSpec(
             name="alpha",
-            density=1.54,
+            solid_density=1540,
             solubility_coefs=np.array([4.564e-3, 3.032e-5, 8.437e-6]),
             g_coefs=np.array([0.1e-6]),
             g_powers=np.array([1]),
@@ -45,7 +47,7 @@ class HypotheticalPolymorphic1D(SystemSpec):
         self.forms = [
             ParametricFormSpec(
                 name="alpha",
-                density=1.54,
+                solid_density=1540,
                 solubility_coefs=np.array([4.564e-3, 3.032e-5, 8.437e-6]),
                 g_coefs=np.array([0.1e-6]),
                 g_powers=np.array([1]),
@@ -61,7 +63,7 @@ class HypotheticalPolymorphic1D(SystemSpec):
             ),
             ParametricFormSpec(
                 name="beta",
-                density=1.54,
+                solid_density=1540,
                 solubility_coefs=np.array([6.222e-3, -1.165e-4, 7.644e-6]),
                 g_coefs=np.array([0.1e-6]),
                 g_powers=np.array([1]),
@@ -80,31 +82,24 @@ class HypotheticalPolymorphic1D(SystemSpec):
 
 class HypotheticalAgg1D(Hypothetical1D):
 
-    def __init__(self, name=None, min_count=None, compression_interval=None):
+    def __init__(self, name=None):
         super().__init__(name)
-        self.forms[0].agg_kernel = 100
-        if min_count is not None:
-            self.forms[0].min_count = min_count
-        if compression_interval is not None:
-            self.forms[0].compression_interval = compression_interval
+        self.forms[0].agglomeration_model = ConstantAgglomeration(2e-14, min_count=1e3)
 
 
 class HypotheticalBrk1D(Hypothetical1D):
-    def __init__(self, name=None, min_count=None, compression_interval=None):
+    def __init__(self, name=None):
         super().__init__(name)
         self.forms[0].brk_kernel = np.array([
             (0.5, 100)
         ])
-        if min_count is not None:
-            self.forms[0].min_count = min_count
-        if compression_interval is not None:
-            self.forms[0].compression_interval = compression_interval
+
 
 
 class HypotheticalAggBrk1D(HypotheticalAgg1D, HypotheticalBrk1D):
 
-    def __init__(self, name=None, min_count=None, compression_interval=None):
-        super().__init__(name, min_count, compression_interval)
+    def __init__(self, name=None):
+        super().__init__(name)
 
 
 class HypotheticalEqualGrowth2D(SystemSpec):
@@ -117,7 +112,7 @@ class HypotheticalEqualGrowth2D(SystemSpec):
 
         self.forms = [ParametricFormSpec(
             name="alpha",
-            density=1.54,
+            solid_density=1540,
             solubility_coefs=np.array([4.564e-3, 3.032e-5, 8.437e-6]),
             g_coefs=np.array([0.1e-6, 0.1e-6]),
             g_powers=np.array([1, 1]),
@@ -141,7 +136,7 @@ class Hypothetical2D(SystemSpec):
 
         self.forms = [ParametricFormSpec(
             name="alpha",
-            density=1.54,
+            solid_density=1540,
             solubility_coefs=np.array([4.564e-3, 3.032e-5, 8.437e-6]),
             g_coefs=np.array([0.1e-6, 0.15e-6]),
             g_powers=np.array([1, 1.2]),
@@ -166,7 +161,7 @@ class HypotheticalPolymorphicEqualGrowth2D(SystemSpec):
         self.forms = [
             ParametricFormSpec(
                 name="alpha",
-                density=1.54,
+                solid_density=1540,
                 solubility_coefs=np.array([4.564e-3, 3.032e-5, 8.437e-6]),
                 g_coefs=np.array([0.1e-6, 0.1e-6]),
                 g_powers=np.array([1, 1]),
@@ -183,7 +178,7 @@ class HypotheticalPolymorphicEqualGrowth2D(SystemSpec):
             ),
             ParametricFormSpec(
                 name="beta",
-                density=1.54,
+                solid_density=1540,
                 solubility_coefs=np.array([6.222e-3, -1.165e-4, 7.644e-6]),
                 g_coefs=np.array([0.1e-6, 0.1e-6]),
                 g_powers=np.array([1, 1]),
@@ -209,7 +204,7 @@ class HypotheticalPolymorphic2D(SystemSpec):
         self.forms = [
             ParametricFormSpec(
                 name="alpha",
-                density=1.54,
+                solid_density=1540,
                 solubility_coefs=np.array([4.564e-3, 3.032e-5, 8.437e-6]),
                 g_coefs=np.array([0.1e-6, 0.15e-6]),
                 g_powers=np.array([1, 1.2]),
@@ -226,7 +221,7 @@ class HypotheticalPolymorphic2D(SystemSpec):
             ),
             ParametricFormSpec(
                 name="beta",
-                density=1.54,
+                solid_density=1540,
                 solubility_coefs=np.array([6.222e-3, -1.165e-4, 7.644e-6]),
                 g_coefs=np.array([0.1e-6, 0.18e-6]),
                 g_powers=np.array([1, 1.1]),

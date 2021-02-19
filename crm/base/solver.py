@@ -223,7 +223,7 @@ class Solver:
 
         state = init_state.copy()
         vfs = np.array([f.volume_fraction(n) for f, n in zip(forms, state.n)])
-        densities = np.array([f.density for f in forms])
+        densities = np.array([f.solid_density / f.solvent_density for f in forms])
 
         end_time = state.time + solve_time
 
@@ -328,7 +328,7 @@ class Solver:
 
             # Update all Bs here
             for i, _ in enumerate(forms):
-                Bs = [B_brk[i], D_brk[i]]
+                Bs = [B_brk[i], B_agg[i]]
                 if B_cont is not None:
                     Bs.append(B_cont[i])
                 state.n[i] = self.update_with_Bs(state.n[i], time_step, Bs)

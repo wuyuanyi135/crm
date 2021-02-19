@@ -209,7 +209,7 @@ class StateDataFrame:
                     return x[:, :-1].max()
 
             max_vals = n.applymap(find_max)
-            edge = np.linspace(0, max_vals.values.max(), 100)
+            edge = np.linspace(0, max_vals.values.max() * 1.1, 100) # TODO: introduce overscale factor
 
         data = []
         for form_id, form in enumerate(n.columns):
