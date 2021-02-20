@@ -5,6 +5,16 @@ from crm.presets.hypothetical import Hypothetical1D, Hypothetical2D
 from crm.utils.csd import create_normal_distribution_n
 from crm.utils.pandas import StateDataFrame
 
+def test_simple_no_jit_compress():
+    interval = 1e-6
+    compressor_nojit = BinningCompressor(grid_interval=interval, jit=False)
+    system_spec = Hypothetical2D()
+    dimensionality = system_spec.forms[0].dimensionality
+    state = system_spec.make_state(
+        n=[create_normal_distribution_n([100e-6] * dimensionality, [10e-6] * dimensionality, grid_count=1000,
+                                        count_density=1e8)])
+
+    result_nojit = compressor_nojit.compress(state, inplace=False)
 
 @pytest.mark.parametrize("system_spec_class", [Hypothetical1D, Hypothetical2D])
 def test_jit_consistency(system_spec_class):
@@ -22,6 +32,17 @@ def test_jit_consistency(system_spec_class):
 
     assert np.allclose(result_nojit.n[0], result_jit.n[0])
 
+
+    # compress something
+    dimensionality = system_spec.forms[0].dimensionality
+    state = system_spec.make_state(
+        n=[create_normal_distribution_n([100e-6] * dimensionality, [10e-6] * dimensionality, grid_count=1000,
+                                        count_density=1e8)])
+
+    result_nojit = compressor_nojit.compress(state, inplace=False)
+    result_jit = compressor_jit.compress(state, inplace=False)
+
+    assert np.allclose(result_nojit.n[0], result_jit.n[0])
 
 @pytest.mark.parametrize("jit", [True, False])
 @pytest.mark.parametrize("grid_count", [100, 1000])

@@ -1,4 +1,4 @@
-from numba import jit
+from numba import jit, typed, types
 import numpy as np
 
 

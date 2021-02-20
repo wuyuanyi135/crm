@@ -25,7 +25,7 @@ class Compressor:
 
 
 class BinningCompressor(Compressor):
-    def __init__(self, grid_interval=1e-6, minimum_row=1, jit=True):
+    def __init__(self, grid_interval=1e-6, minimum_row=1, jit=False):
         super().__init__()
         self.minimum_row = minimum_row
         self.grid_interval = grid_interval
@@ -52,14 +52,23 @@ class BinningCompressor(Compressor):
         for i, (n, form) in enumerate(zip(state.n, state.system_spec.forms)):
             if n.size <= self.minimum_row:
                 continue
-            nbins = []
-            for i_dim in range(n.shape[1] - 1):
-                nn = n[:, i_dim]
-                b = np.round((nn.max() - nn.min()) / self.grid_interval + 1)
-                nbins.append(b)
+            # nbins = []
+            # for i_dim in range(n.shape[1] - 1):
+            #     nn = n[:, i_dim]
+            #     b = np.round((nn.max() - nn.min()) / self.grid_interval + 1)
+            #     nbins.append(b)
 
             # find the binned counts and assignment of each particles to the bins (inverse index)
-            stat, edges, assignments = binned_statistic_dd(n[:, :-1], n[:, -1], statistic="sum", bins=nbins)
+            # stat, edges, assignments = binned_statistic_dd(n[:, :-1], n[:, -1], statistic="sum", bins=nbins)
+
+            sz = n[:, :-1]
+            dims_min = sz.min(axis=0)
+            dims_max = sz.max(axis=0)
+            interval = self.grid_interval
+            cnts = (dims_max - dims_min) // interval + 1
+            cumprod_dim = np.cumprod(np.hstack((np.array([1]), cnts)))[:-1]
+
+            assignments = ((sz - dims_min) // interval * cumprod_dim).sum(axis=1)
 
             # use the index to partition
             partitions = npi.group_by(assignments).split(n)
