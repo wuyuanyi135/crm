@@ -119,7 +119,7 @@ def binary_agglomeration_jit(
 
 
 ###############
-# High end class interface
+# High level class interface
 ###############
 class BaseAgglomeration(object):
     def __init__(self, compression_interval: float = 0., min_count: float = 0.):
@@ -156,7 +156,7 @@ class ConstantAgglomeration(BaseAgglomeration):
 
 
 class SmoluchowskiAgglomeration(BaseAgglomeration):
-    def __init__(self, beta: float, ss_power: float, eps_coef0: float, eps_coef1: float,
+    def __init__(self, beta: float, ss_power: float, eps_power0: float, eps_power1: float,
                  compression_interval: float = 0., min_count: float = 0.):
         """
         Reference: 10.1016/S0009-2509(00)00059-2
@@ -164,14 +164,14 @@ class SmoluchowskiAgglomeration(BaseAgglomeration):
 
         :param beta: m^3/(m^3 * s)
         :param ss_power:
-        :param eps_coef0:
-        :param eps_coef1:
+        :param eps_power0:
+        :param eps_power1:
         :param compression_interval:
         :param min_count:
         """
         super().__init__(compression_interval, min_count)
-        self.eps_coef1 = eps_coef1
-        self.eps_coef0 = eps_coef0
+        self.eps_power1 = eps_power1
+        self.eps_power0 = eps_power0
         self.ss_power = ss_power
         self.beta = beta
 
@@ -182,7 +182,7 @@ class SmoluchowskiAgglomeration(BaseAgglomeration):
         eps = state.agitation_power / (state.volume * form.slurry_density(state, polymorph_idx))
 
         ss = form.state_supersaturation(state, polymorph_idx)
-        coef = self.beta * (1 + self.eps_coef0 * eps ** 0.5 + self.eps_coef1 * eps) * ss ** self.ss_power
+        coef = self.beta * (1 + self.eps_power0 * eps ** 0.5 + self.eps_power1 * eps) * ss ** self.ss_power
 
         return binary_agglomeration_jit(n, form.volume_fraction_powers, form.shape_factor, coef,
                                         self.compression_interval, kernel_type=AgglKernelType.SMOLUCHOWSKI)

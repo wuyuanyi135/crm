@@ -268,6 +268,9 @@ class Solver:
 
             # Apply nucleation and growth
             for i, (f, n) in enumerate(zip(forms, state.n)):
+                if gd[i] is None:
+                    continue
+
                 supersaturation_break_point = f.supersaturation_break_point
                 ss_ = ss[i]
 
@@ -324,7 +327,6 @@ class Solver:
                 state.n[i] = self.update_with_D(state.n[i], time_step, D1)
                 state.n[i] = self.update_with_D(state.n[i], time_step, D2)
 
-                assert np.all(state.n[i][:, -1] > 0)
 
             # Update all Bs here
             for i, _ in enumerate(forms):

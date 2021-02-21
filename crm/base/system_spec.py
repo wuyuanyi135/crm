@@ -5,7 +5,7 @@ import numpy as np
 
 from crm.base.state import State
 from crm.jit.agglomeration import BaseAgglomeration
-from crm.jit.breakage import binary_breakage_jit
+from crm.jit.breakage import BaseBreakage
 from crm.jit.csd import particle_volume_jit, volume_fraction_jit, volume_average_size_jit
 
 
@@ -25,7 +25,9 @@ class FormSpec:
 
     jit: bool = True
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, agglomeration_model: BaseAgglomeration = None, breakage_model: BaseBreakage = None):
+        self.breakage_model = breakage_model
+        self.agglomeration_model = agglomeration_model
         self.name = name
 
         if self.jit:
@@ -80,26 +82,26 @@ class FormSpec:
         :param t: Optional temperature for testing or cache
         :return: solubility in kg solute / kg solvent
         """
-        raise NotImplementedError()
+        return 0
 
-    def growth_rate(self, state: State = None, polymorph_idx: int = None) -> np.ndarray:
+    def growth_rate(self, state: State = None, polymorph_idx: int = None) -> Optional[np.ndarray]:
         """
 
         :param state:
         :param polymorph_idx: designate which polymorphic property to use
         :return: N x M array. N is the length of t and ss, M is the dimensionality. In unit of m/s
         """
-        raise NotImplementedError()
+        return None
 
-    def dissolution_rate(self, state: State = None, polymorph_idx: int = None) -> np.ndarray:
+    def dissolution_rate(self, state: State = None, polymorph_idx: int = None) -> Optional[np.ndarray]:
         """
         see growth_rate. This should return a negative value.
         :param state:
         :return:
         """
-        raise NotImplementedError()
+        return None
 
-    def nucleation_rate(self, state: State = None, polymorph_idx: int = None, vf=None) -> np.ndarray:
+    def nucleation_rate(self, state: State = None, polymorph_idx: int = None, vf=None) -> Optional[np.ndarray]:
         """
 
         :param state:
@@ -107,27 +109,7 @@ class FormSpec:
         cached properties
         :return: primary and secondary nucleation rate. In unit of #/m3/s
         """
-        raise NotImplementedError()
-
-    def agglomeration(self, state: State = None, polymorph_idx: int = None) -> Tuple[
-        Optional[np.ndarray], Optional[np.ndarray]]:
-        """
-        Agglomeration parameters.
-        :param state:
-        :return: (D, B) or None. D has the same rows as the n, indicating the count being removed from n. B has arbitrary
-        number of rows and same columns as D. The volume of B and D should equal.
-        """
-
-        return None, None
-
-    def breakage(self, state: State = None, polymorph_idx: int = None) -> Tuple[
-        Optional[np.ndarray], Optional[np.ndarray]]:
-        """
-        Breakage parameters.
-        :param state:
-        :return: see agglomeration return
-        """
-        return None, None
+        return None
 
     def volume_fraction(self, n: np.ndarray):
         """
@@ -187,6 +169,27 @@ class FormSpec:
             ret = np.hstack([first_dim_size, non_first_dim_mean_sizes, count])
             return ret.reshape((1, -1))
 
+    def agglomeration(
+            self,
+            state: State = None,
+            polymorph_idx: int = None
+    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+        n = state.n[polymorph_idx]
+        if self.agglomeration_model is None or n.size == 0:
+            return None, None
+
+        return self.agglomeration_model.compute(state, polymorph_idx)
+
+    def breakage(self, state: State = None, polymorph_idx: int = None) -> Tuple[
+        Optional[np.ndarray], Optional[np.ndarray]]:
+        n = state.n[polymorph_idx]
+        if self.breakage_model is None or n.size == 0:
+            return None, None
+
+        B, D = self.breakage_model.compute(state, polymorph_idx)
+        return B, D
+
+
 class ParametricFormSpec(FormSpec):
     def __init__(
             self,
@@ -213,7 +216,7 @@ class ParametricFormSpec(FormSpec):
             shape_factor=None,
             volume_fraction_powers=None,
             agglomeration_model: BaseAgglomeration = None,
-            brk_kernel: Optional[np.ndarray] = None,
+            breakage_model: BaseBreakage = None,
     ):
         """
         :param solubility_coefs: solubility in g solute/g solvent. solubility = poly[0] * T**0 + ...
@@ -235,12 +238,9 @@ class ParametricFormSpec(FormSpec):
         :param sn_ea: optional secondary nucleation activation energy
         :param shape_factor: optional shape factor
         :param volume_fraction_powers: optional volume fraction powers.
-        :param brk_kernel: breakage kernel. Rows as kernels. Columns as split ratio and probability.
         """
 
-        super().__init__(name)
-        self.agglomeration_model = agglomeration_model
-        self.brk_kernel = brk_kernel
+        super().__init__(name, agglomeration_model=agglomeration_model, breakage_model=breakage_model)
         self.g_coefs = g_coefs
         self.dimensionality = g_coefs.shape[0]
 
@@ -269,26 +269,6 @@ class ParametricFormSpec(FormSpec):
 
         self.solid_density = solid_density or self.solid_density
         self.solvent_density = solvent_density or self.solvent_density
-
-    def agglomeration(
-            self,
-            state: State = None,
-            polymorph_idx: int = None
-    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
-        n = state.n[polymorph_idx]
-        if self.agglomeration_model is None or n.size == 0:
-            return None, None
-
-        return self.agglomeration_model.compute(state, polymorph_idx)
-
-    def breakage(self, state: State = None, polymorph_idx: int = None) -> Tuple[
-        Optional[np.ndarray], Optional[np.ndarray]]:
-        n = state.n[polymorph_idx]
-        if self.brk_kernel is None or n.size == 0:
-            return None, None
-        B, D = binary_breakage_jit(n, self.brk_kernel, self.volume_fraction_powers, self.shape_factor, state.volume,
-                                   minimum_count=self.min_count, compression_interval=0.)
-        return B, D
 
     def solubility(self, state: State = None, polymorph_idx: int = None, t=None) -> float:
         t = t or state.temperature

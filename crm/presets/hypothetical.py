@@ -15,6 +15,7 @@ __all__ = [
 ]
 
 from crm.jit.agglomeration import ConstantAgglomeration
+from crm.jit.breakage import ConstantBreakage
 
 
 class Hypothetical1D(SystemSpec):
@@ -90,10 +91,7 @@ class HypotheticalAgg1D(Hypothetical1D):
 class HypotheticalBrk1D(Hypothetical1D):
     def __init__(self, name=None):
         super().__init__(name)
-        self.forms[0].brk_kernel = np.array([
-            (0.5, 100)
-        ])
-
+        self.forms[0].breakage_model = ConstantBreakage(np.array([(0.5, 2e-4)]))
 
 
 class HypotheticalAggBrk1D(HypotheticalAgg1D, HypotheticalBrk1D):

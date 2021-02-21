@@ -10,6 +10,8 @@ from crm.base.state import State
 from crm.base.system_spec import SystemSpec
 from crm.utils.statistics import weighted_quantile
 
+from scipy.stats.kde import gaussian_kde
+
 TSProperty = pd.DataFrame
 # the time series property with row index = time and column = polymorph name.
 PolymorphicTSProperty = pd.DataFrame
@@ -181,6 +183,41 @@ class StateDataFrame:
     def volume_weighted_quantiles(self) -> PolymorphicTSProperty:
         return self.get_quantiles(weight="volume")
 
+    @functools.lru_cache()
+    def get_kde(self, bw_method=None):
+        n = self.n
+        dimension_ids = [range(f.dimensionality) for f in self._system_spec.forms]
+        levels = []
+        for fn, dim in zip(self.form_names, dimension_ids):
+            for d in dim:
+                levels.append((fn, d))
+        columns = pd.MultiIndex.from_tuples(levels)
+
+        data = []
+        for form_id, form in enumerate(n.columns):
+            form_series = n[form]
+
+            def find_kde_each_dim(x, dimensionality):
+                ret = []
+                for i in range(dimensionality):
+                    if x.shape[0] > 1:
+                        sz = x[:, i]
+                        kde = gaussian_kde(sz, weights=x[:, -1], bw_method=bw_method)
+                        data_range = (min(sz), max(sz))
+                        ret.append([kde, data_range])
+                    else:
+                        ret.append(None)
+
+                return pd.Series(ret)
+
+            dimensionality = self._system_spec.forms[form_id].dimensionality
+            data.append(form_series.apply(lambda x: find_kde_each_dim(x, dimensionality)))
+        df = pd.concat(data, axis=1)
+        df.columns = columns
+        df.index = self.time
+
+        return df
+
     def get_csd(self, edge=None, weight=None):
         """
         Get the csd on the given grid. When multidimensional system spec is used, the 1D size distribution of each
@@ -209,7 +246,7 @@ class StateDataFrame:
                     return x[:, :-1].max()
 
             max_vals = n.applymap(find_max)
-            edge = np.linspace(0, max_vals.values.max() * 1.1, 100) # TODO: introduce overscale factor
+            edge = np.linspace(0, max_vals.values.max() * 1.1, 100)  # TODO: introduce overscale factor
 
         data = []
         for form_id, form in enumerate(n.columns):

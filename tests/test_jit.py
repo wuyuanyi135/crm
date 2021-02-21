@@ -202,7 +202,6 @@ def test_benchmark_breakage(kernels, nrows, system_spec_class, compress, benchma
     system_spec = system_spec_class()
     form = system_spec.forms[0]
     dim = form.dimensionality
-    crystallizer_volume = 150e-6  # mL
 
     n = create_normal_distribution_n(loc=[100e-6] * dim, scale=[20e-6] * dim, count_density=1e8, grid_count=nrows)
 
@@ -211,7 +210,7 @@ def test_benchmark_breakage(kernels, nrows, system_spec_class, compress, benchma
     # B, D = benchmark(binary_breakage_jit, n, kernels, form.volume_fraction_powers, form.shape_factor,
     #                  crystallizer_volume, compression_interval=compression_interval)
     B, D = binary_breakage_jit(n, kernels, form.volume_fraction_powers, form.shape_factor,
-                               crystallizer_volume, compression_interval=compression_interval)
+                               compression_interval=compression_interval)
     assert_volume_equal(n, B, D, form)
     print(f"n rows in B: {B.shape[0] if B is not None else 0}")
 
